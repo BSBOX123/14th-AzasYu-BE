@@ -97,17 +97,24 @@ public class InterviewQuestionService {
                 questionSet -> questionSet.failed("질문 생성에 실패했습니다. 잠시 후 다시 시도해 주세요."));
         }
 
-        return transactionTemplate.execute(status -> {
-            InterviewQuestionSet questionSet = getQuestionSet(pending.questionSetId());
-            questionRepository.deleteAllByQuestionSetId(questionSet.getId());
-            for (int index = 0; index < generatedQuestions.size(); index++) {
-                questionRepository.save(new InterviewQuestion(
-                    questionSet, index + 1, generatedQuestions.get(index).trim()
-                ));
-            }
-            questionSet.generated();
-            return toResponse(questionSet);
-        });
+        try {
+            return transactionTemplate.execute(status -> {
+                InterviewQuestionSet questionSet = getQuestionSet(pending.questionSetId());
+                questionRepository.deleteAllByQuestionSetId(questionSet.getId());
+                for (int index = 0; index < generatedQuestions.size(); index++) {
+                    questionRepository.save(new InterviewQuestion(
+                        questionSet, index + 1, generatedQuestions.get(index).trim()
+                    ));
+                }
+                questionSet.generated();
+                return toResponse(questionSet);
+            });
+        } catch (RuntimeException exception) {
+            // 저장 단계가 실패하면 상태가 PENDING에 멈춘다. FAILED로 내려 재시도할 수 있게 한다.
+            log.error("Interview question save failed: questionSetId={}", pending.questionSetId(), exception);
+            return updateQuestionSet(pending.questionSetId(),
+                questionSet -> questionSet.failed("질문 저장에 실패했습니다. 잠시 후 다시 시도해 주세요."));
+        }
     }
 
     private InterviewQuestionsResponse updateQuestionSet(Long questionSetId, Consumer<InterviewQuestionSet> change) {

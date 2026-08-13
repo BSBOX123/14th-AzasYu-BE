@@ -78,22 +78,29 @@ public class MeetingAnalysisService {
                 analysis -> analysis.failed("회의 분석에 실패했습니다. 잠시 후 다시 시도해 주세요."));
         }
 
-        return transactionTemplate.execute(status -> {
-            MeetingAnalysis analysis = getAnalysis(pending.analysisId());
-            findingRepository.deleteAllByAnalysisId(analysis.getId());
-            analysis.generated(
-                draft.meetingPurpose(), draft.keyDiscussions(), draft.decisions(), draft.followUpChecks()
-            );
-            List<MeetingAnalysisDraft.AmbiguityDraft> ambiguities = draft.ambiguities() == null
-                ? List.of() : draft.ambiguities();
-            for (int index = 0; index < ambiguities.size(); index++) {
-                var ambiguity = ambiguities.get(index);
-                findingRepository.save(new AmbiguityFinding(
-                    analysis, index + 1, ambiguity.expression(), ambiguity.reason()
-                ));
-            }
-            return toResponse(analysis);
-        });
+        try {
+            return transactionTemplate.execute(status -> {
+                MeetingAnalysis analysis = getAnalysis(pending.analysisId());
+                findingRepository.deleteAllByAnalysisId(analysis.getId());
+                analysis.generated(
+                    draft.meetingPurpose(), draft.keyDiscussions(), draft.decisions(), draft.followUpChecks()
+                );
+                List<MeetingAnalysisDraft.AmbiguityDraft> ambiguities = draft.ambiguities() == null
+                    ? List.of() : draft.ambiguities();
+                for (int index = 0; index < ambiguities.size(); index++) {
+                    var ambiguity = ambiguities.get(index);
+                    findingRepository.save(new AmbiguityFinding(
+                        analysis, index + 1, ambiguity.expression(), ambiguity.reason()
+                    ));
+                }
+                return toResponse(analysis);
+            });
+        } catch (RuntimeException exception) {
+            // 저장 단계가 실패하면 상태가 PENDING에 멈춘다. FAILED로 내려 재시도할 수 있게 한다.
+            log.error("Meeting analysis result save failed: analysisId={}", pending.analysisId(), exception);
+            return updateAnalysis(pending.analysisId(),
+                analysis -> analysis.failed("회의 분석 결과 저장에 실패했습니다. 잠시 후 다시 시도해 주세요."));
+        }
     }
 
     private MeetingAnalysisResponse updateAnalysis(Long analysisId, Consumer<MeetingAnalysis> change) {

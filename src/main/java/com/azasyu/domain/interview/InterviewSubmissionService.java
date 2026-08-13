@@ -122,14 +122,21 @@ public class InterviewSubmissionService {
                 submission -> submission.failed("아이디어 카드 생성에 실패했습니다. 잠시 후 다시 시도해 주세요."));
         }
 
-        return transactionTemplate.execute(status -> {
-            InterviewSubmission submission = getSubmission(pending.submissionId());
-            ideaCardRepository.save(new IdeaCard(
-                submission, draft.coreOpinion(), draft.rationale(), draft.concern(), draft.alternative()
-            ));
-            submission.generated();
-            return toResponse(submission);
-        });
+        try {
+            return transactionTemplate.execute(status -> {
+                InterviewSubmission submission = getSubmission(pending.submissionId());
+                ideaCardRepository.save(new IdeaCard(
+                    submission, draft.coreOpinion(), draft.rationale(), draft.concern(), draft.alternative()
+                ));
+                submission.generated();
+                return toResponse(submission);
+            });
+        } catch (RuntimeException exception) {
+            // 저장 단계가 실패하면 상태가 PENDING에 멈춘다. FAILED로 내려 재시도할 수 있게 한다.
+            log.error("Idea card save failed: submissionId={}", pending.submissionId(), exception);
+            return updateSubmission(pending.submissionId(),
+                submission -> submission.failed("아이디어 카드 저장에 실패했습니다. 잠시 후 다시 시도해 주세요."));
+        }
     }
 
     private InterviewSubmissionResponse updateSubmission(Long submissionId, Consumer<InterviewSubmission> change) {

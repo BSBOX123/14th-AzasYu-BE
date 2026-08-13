@@ -11,6 +11,7 @@ import com.azasyu.domain.interview.ai.IdeaCardDraft;
 import com.azasyu.domain.interview.ai.InterviewAnswerContext;
 import com.azasyu.domain.interview.ai.InterviewQuestionAiClient;
 import com.azasyu.domain.interview.dto.SubmitInterviewRequest;
+import com.azasyu.domain.meeting.MeetingAnalysisService;
 import com.azasyu.domain.meeting.MeetingRecordService;
 import com.azasyu.domain.meeting.MeetingService;
 import com.azasyu.domain.meeting.ai.MeetingAnalysisAiClient;
@@ -39,7 +40,13 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * <p>클래스에 {@code @Transactional}을 걸지 않는다. 테스트 트랜잭션이 열려 있으면
  * 서비스가 그 트랜잭션에 참여해 버려서 검증 자체가 무의미해지기 때문이다.
  */
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:ai-tx-boundary;MODE=MySQL;DB_CLOSE_DELAY=-1")
+@SpringBootTest(properties = {
+    "spring.datasource.url=jdbc:h2:mem:ai-tx-boundary;MODE=MySQL;DB_CLOSE_DELAY=-1",
+    // 기본 테스트 설정은 create-drop이라 Hibernate가 만든 스키마를 쓴다. 엔티티에 선언되지
+    // 않은 유니크 제약(uk_ambiguity_findings_order 등)이 빠져 실제 스키마와 달라지므로,
+    // 이 테스트는 Flyway 마이그레이션이 만든 스키마를 그대로 사용한다.
+    "spring.jpa.hibernate.ddl-auto=validate"
+})
 class AiCallTransactionBoundaryTest {
 
     @Autowired private AuthService authService;
@@ -48,6 +55,7 @@ class AiCallTransactionBoundaryTest {
     @Autowired private InterviewQuestionService questionService;
     @Autowired private InterviewSubmissionService submissionService;
     @Autowired private MeetingRecordService recordService;
+    @Autowired private MeetingAnalysisService analysisService;
 
     @Autowired private TransactionProbe probe;
 
@@ -81,6 +89,34 @@ class AiCallTransactionBoundaryTest {
         assertThat(probe.analysisClientInTransaction)
             .as("회의 분석이 호출되지 않았거나 트랜잭션 안에서 호출됨")
             .isFalse();
+    }
+
+    /**
+     * 회의 분석을 재생성해도 기존 모호성 탐지 결과와 충돌하지 않아야 한다.
+     *
+     * <p>파생 삭제는 DELETE를 flush까지 미루고 Hibernate가 INSERT를 먼저 실행해,
+     * 같은 {@code (analysis_id, finding_order)}로 유니크 제약을 위반했다.
+     */
+    @Test
+    void analysisCanBeRegeneratedAfterSuccess() {
+        Long ownerId = signUp("regenerate-owner@example.com", "재생성");
+        var project = projectService.create(ownerId, new CreateProjectRequest("재생성 검증", "유니크 제약"));
+        var meeting = meetingService.create(ownerId, project.id(), new CreateMeetingRequest(
+            "재생성 회의", "재생성을 확인한다.", List.of("안건"),
+            LocalDate.now().plusDays(1), LocalTime.of(11, 0), 60, List.of(ownerId)
+        ));
+
+        recordService.createFromText(ownerId, meeting.id(), "적당히 하기로 했고 조만간 정하기로 했습니다.");
+        var first = analysisService.get(ownerId, meeting.id());
+        assertThat(first.status()).isEqualTo("GENERATED");
+        assertThat(first.ambiguities()).hasSize(2);
+
+        var second = analysisService.retry(ownerId, meeting.id());
+
+        assertThat(second.status())
+            .as("재생성이 유니크 제약 위반으로 실패함")
+            .isEqualTo("GENERATED");
+        assertThat(second.ambiguities()).hasSize(2);
     }
 
     private Long signUp(String email, String name) {
@@ -148,7 +184,11 @@ class AiCallTransactionBoundaryTest {
                 @Override
                 public MeetingAnalysisDraft analyze(MeetingContext meeting, String recordContent) {
                     probe.analysisClientInTransaction = TransactionSynchronizationManager.isActualTransactionActive();
-                    return new MeetingAnalysisDraft("목적", "논의", "결정", "확인", List.of());
+                    // 모호성을 반환해야 재생성 시 기존 findings 삭제 경로를 검증할 수 있다.
+                    return new MeetingAnalysisDraft("목적", "논의", "결정", "확인", List.of(
+                        new MeetingAnalysisDraft.AmbiguityDraft("적당히", "기준이 불명확함"),
+                        new MeetingAnalysisDraft.AmbiguityDraft("조만간", "기한이 불명확함")
+                    ));
                 }
             };
         }
