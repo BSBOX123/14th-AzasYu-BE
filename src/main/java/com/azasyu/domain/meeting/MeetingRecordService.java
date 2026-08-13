@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
@@ -22,19 +23,35 @@ public class MeetingRecordService {
     private final UserRepository userRepository;
     private final MeetingDocumentTextExtractor textExtractor;
     private final MeetingAnalysisService analysisService;
+    private final TransactionTemplate transactionTemplate;
 
-    @Transactional
+    /**
+     * 회의 원문을 저장하고 분석 생성을 시작한다.
+     *
+     * <p>메서드에 {@code @Transactional}을 걸지 않는다. 원문 저장을 먼저 커밋한 뒤
+     * 분석을 시작해야 AI 호출이 트랜잭션 밖에서 이루어진다.
+     */
     public MeetingRecordResponse createFromText(Long userId, Long meetingId, String content) {
-        return create(userId, meetingId, MeetingRecordSourceType.TEXT, null, content);
+        return createAndAnalyze(userId, meetingId, MeetingRecordSourceType.TEXT, null, content);
     }
 
-    @Transactional
     public MeetingRecordResponse createFromFile(Long userId, Long meetingId, MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "EMPTY_DOCUMENT", "업로드할 파일이 비어 있습니다.");
         }
+        // 문서 텍스트 추출도 트랜잭션 밖에서 처리한다.
         ExtractedDocument document = textExtractor.extract(file);
-        return create(userId, meetingId, document.sourceType(), document.fileName(), document.content());
+        return createAndAnalyze(userId, meetingId, document.sourceType(), document.fileName(), document.content());
+    }
+
+    private MeetingRecordResponse createAndAnalyze(
+        Long userId, Long meetingId, MeetingRecordSourceType type, String fileName, String rawContent
+    ) {
+        MeetingRecordResponse response = transactionTemplate.execute(
+            status -> create(userId, meetingId, type, fileName, rawContent)
+        );
+        analysisService.initializeAndGenerate(meetingId);
+        return response;
     }
 
     @Transactional(readOnly = true)
@@ -62,7 +79,6 @@ public class MeetingRecordService {
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "MEETING_NOT_FOUND", "회의를 찾을 수 없습니다."));
         User user = userRepository.findById(userId).orElseThrow();
         MeetingRecord record = recordRepository.save(new MeetingRecord(meeting, user, type, fileName, content));
-        analysisService.initializeAndGenerate(record);
         return toResponse(record);
     }
 
