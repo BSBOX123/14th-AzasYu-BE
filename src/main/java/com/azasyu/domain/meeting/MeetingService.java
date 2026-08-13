@@ -18,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 @RequiredArgsConstructor
@@ -28,9 +29,21 @@ public class MeetingService {
     private final MeetingParticipantRepository meetingParticipantRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final InterviewQuestionService interviewQuestionService;
+    private final TransactionTemplate transactionTemplate;
 
-    @Transactional
+    /**
+     * 회의를 생성하고 공통 질문 생성을 시작한다.
+     *
+     * <p>메서드에 {@code @Transactional}을 걸지 않는다. 회의 저장을 먼저 커밋한 뒤
+     * 질문 생성을 시작해야 AI 호출이 트랜잭션 밖에서 이루어진다.
+     */
     public MeetingDetailResponse create(Long userId, Long projectId, CreateMeetingRequest request) {
+        Long meetingId = transactionTemplate.execute(status -> createMeeting(userId, projectId, request));
+        interviewQuestionService.initializeAndGenerate(meetingId);
+        return transactionTemplate.execute(status -> buildDetail(userId, meetingId));
+    }
+
+    private Long createMeeting(Long userId, Long projectId, CreateMeetingRequest request) {
         ProjectMember creatorMember = getProjectMember(projectId, userId);
         Map<Long, ProjectMember> projectMembers = projectMemberRepository
             .findAllByProjectIdOrderByJoinedAtAsc(projectId).stream()
@@ -61,9 +74,8 @@ public class MeetingService {
         participantIds.forEach(participantId -> meetingParticipantRepository.save(
             new MeetingParticipant(meeting, projectMembers.get(participantId).getUser())
         ));
-        interviewQuestionService.initializeAndGenerate(meeting);
 
-        return getDetail(userId, meeting.getId());
+        return meeting.getId();
     }
 
     @Transactional(readOnly = true)
@@ -80,6 +92,10 @@ public class MeetingService {
 
     @Transactional(readOnly = true)
     public MeetingDetailResponse getDetail(Long userId, Long meetingId) {
+        return buildDetail(userId, meetingId);
+    }
+
+    private MeetingDetailResponse buildDetail(Long userId, Long meetingId) {
         Meeting meeting = meetingRepository.findWithDetailsById(meetingId)
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "MEETING_NOT_FOUND", "회의를 찾을 수 없습니다."));
         getProjectMember(meeting.getProject().getId(), userId);

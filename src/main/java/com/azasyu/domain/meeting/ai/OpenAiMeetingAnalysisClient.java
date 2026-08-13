@@ -1,6 +1,5 @@
 package com.azasyu.domain.meeting.ai;
 
-import com.azasyu.domain.meeting.Meeting;
 import com.azasyu.global.ai.GeminiApiClient;
 import com.azasyu.global.ai.GeminiApiException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,11 +23,11 @@ public class OpenAiMeetingAnalysisClient implements MeetingAnalysisAiClient {
     }
 
     @Override
-    public MeetingAnalysisDraft analyze(Meeting meeting, String recordContent) {
+    public MeetingAnalysisDraft analyze(MeetingContext meeting, String recordContent) {
         try {
             String output = geminiApiClient.generateStructured(
                 systemPrompt(),
-                "회의 제목: " + meeting.getTitle() + "\n기존 목적: " + meeting.getPurpose() + "\n\n회의 원문:\n" + recordContent,
+                "회의 제목: " + meeting.title() + "\n기존 목적: " + meeting.purpose() + "\n\n회의 원문:\n" + recordContent,
                 schema());
             return objectMapper.readValue(output, MeetingAnalysisDraft.class);
         } catch (GeminiApiException exception) {

@@ -2,27 +2,36 @@ package com.azasyu.domain.interview;
 
 import com.azasyu.domain.interview.ai.IdeaCardAiClient;
 import com.azasyu.domain.interview.ai.IdeaCardDraft;
+import com.azasyu.domain.interview.ai.InterviewAnswerContext;
 import com.azasyu.domain.interview.dto.InterviewSubmissionResponse;
 import com.azasyu.domain.interview.dto.SubmitInterviewRequest;
 import com.azasyu.domain.meeting.Meeting;
 import com.azasyu.domain.meeting.MeetingParticipantRepository;
 import com.azasyu.domain.meeting.MeetingRepository;
+import com.azasyu.domain.meeting.ai.MeetingContext;
 import com.azasyu.domain.user.User;
 import com.azasyu.domain.user.UserRepository;
 import com.azasyu.global.error.ApiException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 @RequiredArgsConstructor
 public class InterviewSubmissionService {
+
+    private static final Logger log = LoggerFactory.getLogger(InterviewSubmissionService.class);
 
     private final InterviewSubmissionRepository submissionRepository;
     private final InterviewAnswerRepository answerRepository;
@@ -33,78 +42,127 @@ public class InterviewSubmissionService {
     private final MeetingParticipantRepository participantRepository;
     private final UserRepository userRepository;
     private final IdeaCardAiClient ideaCardAiClient;
+    private final TransactionTemplate transactionTemplate;
 
-    @Transactional
+    /**
+     * 인터뷰 답변을 저장하고 아이디어 카드 생성을 시작한다.
+     *
+     * <p>답변 저장까지를 먼저 커밋한 뒤 AI를 호출한다. AI 호출이 트랜잭션 안에서
+     * 일어나면 응답이 늦어질 때 DB 커넥션이 그만큼 오래 점유되기 때문이다.
+     * 제출 자체는 AI 성공 여부와 무관하게 보존된다.
+     */
     public InterviewSubmissionResponse submit(Long userId, Long meetingId, SubmitInterviewRequest request) {
-        requireParticipant(meetingId, userId);
-        if (submissionRepository.existsByMeetingIdAndUserId(meetingId, userId)) {
-            throw new ApiException(HttpStatus.CONFLICT, "INTERVIEW_ALREADY_SUBMITTED", "이미 인터뷰를 제출했습니다.");
-        }
-
-        InterviewQuestionSet questionSet = questionSetRepository.findByMeetingId(meetingId)
-            .filter(set -> QuestionGenerationStatus.GENERATED.name().equals(set.getStatus()))
-            .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "QUESTIONS_NOT_READY", "인터뷰 질문이 아직 준비되지 않았습니다."));
-        List<InterviewQuestion> questions = questionRepository
-            .findAllByQuestionSetIdOrderByQuestionOrderAsc(questionSet.getId());
-        Map<Long, InterviewQuestion> questionMap = questions.stream()
-            .collect(Collectors.toMap(InterviewQuestion::getId, Function.identity()));
-        Map<Long, String> submittedAnswers = new LinkedHashMap<>();
-        request.answers().forEach(answer -> {
-            if (submittedAnswers.put(answer.questionId(), answer.content()) != null) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "DUPLICATE_ANSWER", "같은 질문에 답변이 중복 제출되었습니다.");
+        PendingCard pending = transactionTemplate.execute(status -> {
+            requireParticipant(meetingId, userId);
+            if (submissionRepository.existsByMeetingIdAndUserId(meetingId, userId)) {
+                throw new ApiException(HttpStatus.CONFLICT, "INTERVIEW_ALREADY_SUBMITTED", "이미 인터뷰를 제출했습니다.");
             }
-        });
-        if (!submittedAnswers.keySet().equals(questionMap.keySet())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INCOMPLETE_ANSWERS", "모든 인터뷰 질문에 한 번씩 답변해야 합니다.");
-        }
 
-        Meeting meeting = meetingRepository.findWithDetailsById(meetingId).orElseThrow();
-        User user = userRepository.findById(userId).orElseThrow();
-        InterviewSubmission submission = submissionRepository.save(new InterviewSubmission(meeting, user));
-        questions.forEach(question -> answerRepository.save(
-            new InterviewAnswer(submission, question, submittedAnswers.get(question.getId()).trim())
-        ));
-        generateCard(submission);
-        return toResponse(submission);
+            InterviewQuestionSet questionSet = questionSetRepository.findByMeetingId(meetingId)
+                .filter(set -> QuestionGenerationStatus.GENERATED.name().equals(set.getStatus()))
+                .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "QUESTIONS_NOT_READY", "인터뷰 질문이 아직 준비되지 않았습니다."));
+            List<InterviewQuestion> questions = questionRepository
+                .findAllByQuestionSetIdOrderByQuestionOrderAsc(questionSet.getId());
+            Map<Long, InterviewQuestion> questionMap = questions.stream()
+                .collect(Collectors.toMap(InterviewQuestion::getId, Function.identity()));
+            Map<Long, String> submittedAnswers = new LinkedHashMap<>();
+            request.answers().forEach(answer -> {
+                if (submittedAnswers.put(answer.questionId(), answer.content()) != null) {
+                    throw new ApiException(HttpStatus.BAD_REQUEST, "DUPLICATE_ANSWER", "같은 질문에 답변이 중복 제출되었습니다.");
+                }
+            });
+            if (!submittedAnswers.keySet().equals(questionMap.keySet())) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "INCOMPLETE_ANSWERS", "모든 인터뷰 질문에 한 번씩 답변해야 합니다.");
+            }
+
+            Meeting meeting = meetingRepository.findWithDetailsById(meetingId).orElseThrow();
+            User user = userRepository.findById(userId).orElseThrow();
+            InterviewSubmission submission = submissionRepository.save(new InterviewSubmission(meeting, user));
+            questions.forEach(question -> answerRepository.save(
+                new InterviewAnswer(submission, question, submittedAnswers.get(question.getId()).trim())
+            ));
+            return toPendingCard(submission, meeting);
+        });
+        return generateCardAndSave(pending);
     }
 
     @Transactional(readOnly = true)
     public InterviewSubmissionResponse getMine(Long userId, Long meetingId) {
         requireParticipant(meetingId, userId);
-        InterviewSubmission submission = submissionRepository.findByMeetingIdAndUserId(meetingId, userId)
-            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SUBMISSION_NOT_FOUND", "제출한 인터뷰가 없습니다."));
-        return toResponse(submission);
+        return toResponse(getSubmission(meetingId, userId));
     }
 
-    @Transactional
     public InterviewSubmissionResponse retryCardGeneration(Long userId, Long meetingId) {
-        requireParticipant(meetingId, userId);
-        InterviewSubmission submission = submissionRepository.findByMeetingIdAndUserId(meetingId, userId)
-            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SUBMISSION_NOT_FOUND", "제출한 인터뷰가 없습니다."));
-        if (QuestionGenerationStatus.GENERATED.name().equals(submission.getCardGenerationStatus())) {
-            return toResponse(submission);
-        }
-        submission.pending();
-        generateCard(submission);
-        return toResponse(submission);
+        Optional<PendingCard> pending = transactionTemplate.execute(status -> {
+            requireParticipant(meetingId, userId);
+            InterviewSubmission submission = getSubmission(meetingId, userId);
+            if (QuestionGenerationStatus.GENERATED.name().equals(submission.getCardGenerationStatus())) {
+                return Optional.empty();
+            }
+            submission.pending();
+            return Optional.of(toPendingCard(submission, submission.getMeeting()));
+        });
+        return pending
+            .map(this::generateCardAndSave)
+            .orElseGet(() -> transactionTemplate.execute(status -> toResponse(getSubmission(meetingId, userId))));
     }
 
-    private void generateCard(InterviewSubmission submission) {
+    private InterviewSubmissionResponse generateCardAndSave(PendingCard pending) {
         if (!ideaCardAiClient.isConfigured()) {
-            submission.notConfigured();
-            return;
+            return updateSubmission(pending.submissionId(), InterviewSubmission::notConfigured);
         }
+
+        IdeaCardDraft draft;
         try {
-            IdeaCardDraft draft = ideaCardAiClient.generate(
-                submission.getMeeting(), answerRepository.findAllBySubmissionIdOrderByQuestionQuestionOrderAsc(submission.getId())
-            );
-            ideaCardRepository.save(new IdeaCard(
-                submission, draft.coreOpinion(), draft.rationale(), draft.concern(), draft.alternative()
-            ));
-            submission.generated();
+            // 트랜잭션 밖에서 호출한다. 응답이 지연돼도 DB 커넥션을 잡지 않는다.
+            draft = ideaCardAiClient.generate(pending.meeting(), pending.answers());
         } catch (RuntimeException exception) {
-            submission.failed("아이디어 카드 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+            log.warn("Idea card generation failed: submissionId={}", pending.submissionId(), exception);
+            return updateSubmission(pending.submissionId(),
+                submission -> submission.failed("아이디어 카드 생성에 실패했습니다. 잠시 후 다시 시도해 주세요."));
         }
+
+        try {
+            return transactionTemplate.execute(status -> {
+                InterviewSubmission submission = getSubmission(pending.submissionId());
+                ideaCardRepository.save(new IdeaCard(
+                    submission, draft.coreOpinion(), draft.rationale(), draft.concern(), draft.alternative()
+                ));
+                submission.generated();
+                return toResponse(submission);
+            });
+        } catch (RuntimeException exception) {
+            // 저장 단계가 실패하면 상태가 PENDING에 멈춘다. FAILED로 내려 재시도할 수 있게 한다.
+            log.error("Idea card save failed: submissionId={}", pending.submissionId(), exception);
+            return updateSubmission(pending.submissionId(),
+                submission -> submission.failed("아이디어 카드 저장에 실패했습니다. 잠시 후 다시 시도해 주세요."));
+        }
+    }
+
+    private InterviewSubmissionResponse updateSubmission(Long submissionId, Consumer<InterviewSubmission> change) {
+        return transactionTemplate.execute(status -> {
+            InterviewSubmission submission = getSubmission(submissionId);
+            change.accept(submission);
+            return toResponse(submission);
+        });
+    }
+
+    private PendingCard toPendingCard(InterviewSubmission submission, Meeting meeting) {
+        List<InterviewAnswerContext> answers = answerRepository
+            .findAllBySubmissionIdOrderByQuestionQuestionOrderAsc(submission.getId()).stream()
+            .map(InterviewAnswerContext::from)
+            .toList();
+        return new PendingCard(submission.getId(), MeetingContext.from(meeting), answers);
+    }
+
+    private InterviewSubmission getSubmission(Long meetingId, Long userId) {
+        return submissionRepository.findByMeetingIdAndUserId(meetingId, userId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SUBMISSION_NOT_FOUND", "제출한 인터뷰가 없습니다."));
+    }
+
+    private InterviewSubmission getSubmission(Long submissionId) {
+        return submissionRepository.findById(submissionId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SUBMISSION_NOT_FOUND", "제출한 인터뷰가 없습니다."));
     }
 
     private InterviewSubmissionResponse toResponse(InterviewSubmission submission) {
@@ -125,5 +183,9 @@ public class InterviewSubmissionService {
         if (!participantRepository.existsByMeetingIdAndUserId(meetingId, userId)) {
             throw new ApiException(HttpStatus.NOT_FOUND, "INTERVIEW_NOT_FOUND", "참여 가능한 인터뷰를 찾을 수 없습니다.");
         }
+    }
+
+    /** 트랜잭션 밖으로 넘기는 AI 호출 입력. 엔티티가 아니라 값만 담는다. */
+    private record PendingCard(Long submissionId, MeetingContext meeting, List<InterviewAnswerContext> answers) {
     }
 }

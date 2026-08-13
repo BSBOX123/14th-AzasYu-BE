@@ -1,6 +1,6 @@
 package com.azasyu.domain.interview.ai;
 
-import com.azasyu.domain.meeting.Meeting;
+import com.azasyu.domain.meeting.ai.MeetingContext;
 import com.azasyu.global.ai.GeminiApiClient;
 import com.azasyu.global.ai.GeminiApiException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,7 +25,7 @@ public class OpenAiInterviewQuestionClient implements InterviewQuestionAiClient 
     }
 
     @Override
-    public List<String> generate(Meeting meeting, List<String> agendas) {
+    public List<String> generate(MeetingContext meeting, List<String> agendas) {
         try {
             String outputText = geminiApiClient.generateStructured(
                 systemPrompt(), meetingPrompt(meeting, agendas), jsonSchema());
@@ -65,9 +65,9 @@ public class OpenAiInterviewQuestionClient implements InterviewQuestionAiClient 
             """;
     }
 
-    private String meetingPrompt(Meeting meeting, List<String> agendas) {
+    private String meetingPrompt(MeetingContext meeting, List<String> agendas) {
         String agendaText = String.join("\n", agendas.stream().map(agenda -> "- " + agenda).toList());
-        return "회의 제목: " + meeting.getTitle() + "\n회의 목적: " + meeting.getPurpose() + "\n안건:\n" + agendaText;
+        return "회의 제목: " + meeting.title() + "\n회의 목적: " + meeting.purpose() + "\n안건:\n" + agendaText;
     }
 
     private record QuestionsPayload(List<QuestionPayload> questions) {
