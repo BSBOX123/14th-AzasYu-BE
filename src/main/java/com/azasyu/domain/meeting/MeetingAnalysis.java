@@ -39,13 +39,13 @@ public class MeetingAnalysis {
     @Column(length = 4000)
     private String meetingPurpose;
 
-    @Column(length = 8000)
+    @Column(columnDefinition = "TEXT")
     private String keyDiscussions;
 
-    @Column(length = 8000)
+    @Column(columnDefinition = "TEXT")
     private String decisions;
 
-    @Column(length = 8000)
+    @Column(columnDefinition = "TEXT")
     private String followUpChecks;
 
     @CreationTimestamp
