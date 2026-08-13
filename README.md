@@ -81,21 +81,38 @@
 
 ### Backend
 
-- Language:
-- Framework:
-- Database:
-- Authentication:
+- Language: Java 21
+- Framework: Spring Boot 4.1
+- Database: MySQL 8.4, Spring Data JPA
+- Authentication: Spring Security, JWT
 
 ### AI
 
-- AI Model:
-- AI API:
+- AI Model: 환경 변수로 설정
+- AI API: Google Gemini API (`gemini-3.5-flash-lite`)
 
 ### Infrastructure
 
-- Cloud:
-- Database:
-- CI/CD:
+- Cloud: AWS
+- Database: MySQL
+- Container: Docker
+
+## 💻 로컬 실행
+
+```bash
+./gradlew bootRun
+```
+
+- 기본 로컬 실행은 별도 설치가 필요 없는 파일형 H2 DB를 사용합니다.
+- 로컬 DB 파일은 `data/`에 생성되며 Git에 포함되지 않습니다.
+- Swagger UI: `http://localhost:8080/swagger-ui.html`
+- Health check: `http://localhost:8080/actuator/health`
+- H2 Console: `http://localhost:8080/h2-console`
+- 테스트: `./gradlew test`
+
+배포 환경에서는 `SPRING_PROFILES_ACTIVE=prod`와 DB 환경변수를 설정해 MySQL을 사용합니다.
+
+API 및 도메인 경계는 [`docs/MVP_DOMAIN.md`](docs/MVP_DOMAIN.md)를 참고합니다.
 
 <br>
 
