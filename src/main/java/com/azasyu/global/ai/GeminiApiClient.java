@@ -5,9 +5,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
@@ -18,11 +20,12 @@ public class GeminiApiClient {
         "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent";
 
     private final AppProperties properties;
-    private final RestClient restClient = RestClient.create();
+    private final RestClient restClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public GeminiApiClient(AppProperties properties) {
+    public GeminiApiClient(AppProperties properties, RestClient geminiRestClient) {
         this.properties = properties;
+        this.restClient = geminiRestClient;
     }
 
     public boolean isConfigured() {
@@ -55,6 +58,10 @@ public class GeminiApiClient {
         } catch (RestClientResponseException exception) {
             throw new GeminiApiException(
                 exception.getStatusCode().value(), extractGoogleMessage(exception.getResponseBodyAsString()), exception
+            );
+        } catch (ResourceAccessException exception) {
+            throw new GeminiApiException(
+                HttpStatus.GATEWAY_TIMEOUT.value(), "Gemini 응답 시간이 초과되었습니다.", exception
             );
         } catch (Exception exception) {
             throw new IllegalStateException("Gemini 응답 JSON을 해석하지 못했습니다.", exception);
