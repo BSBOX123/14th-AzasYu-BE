@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>이해했습니다!(아님) · API Lab</title>
+  <link rel="stylesheet" href="/api-tester/style.css?v=2">
+  <link rel="stylesheet" href="/api-tester/theme.css?v=2">
+</head>
+<body>
+<header>
+  <div><span class="eyebrow">LOCAL API LAB</span><h1>이해했습니다! <i>(아님)</i></h1></div>
+  <div id="serverStatus" class="status">서버 확인 중</div>
+</header>
+
+<main>
+  <nav id="steps">
+    <button data-step="auth" class="active">1. 로그인</button>
+    <button data-step="project">2. 프로젝트</button>
+    <button data-step="meeting">3. 회의 생성</button>
+    <button data-step="interview">4. 사전 인터뷰</button>
+    <button data-step="board">5. 아이디어 보드</button>
+    <button data-step="analysis">6. 회의 분석</button>
+  </nav>
+
+  <section class="workspace">
+    <div class="content">
+      <article id="auth" class="panel active">
+        <div class="hero">
+          <div><span class="hero-tag">FAKE CONSENSUS CHECKER</span><h2>말하지 못한 생각까지<br><em>회의 전에 발견하세요.</em></h2><p>핵심 API 흐름을 실제 데이터와 Gemini로 빠르게 검증하는 로컬 테스트 공간입니다.</p></div>
+          <div class="hero-visual"><span>“최대한 빠르게”</span><span>“핵심만 먼저”</span><span>“다음 주까지”</span><strong>정말 같은 뜻일까요?</strong></div>
+        </div>
+        <div class="title"><div><small>STEP 01</small><h2>테스트 사용자</h2></div><span id="authBadge" class="badge">로그인 필요</span></div>
+        <div class="grid two">
+          <form id="signupForm" class="card"><h3>회원가입</h3><label>이름<input name="name" value="테스트 사용자" required></label><label>이메일<input name="email" type="email" value="test@example.com" required></label><label>비밀번호<input name="password" type="password" value="password123" required></label><button>회원가입하고 로그인</button></form>
+          <form id="loginForm" class="card"><h3>로그인</h3><label>이메일<input name="email" type="email" value="test@example.com" required></label><label>비밀번호<input name="password" type="password" value="password123" required></label><button>로그인</button><button type="button" class="ghost" id="logoutButton">로그아웃</button></form>
+        </div>
+      </article>
+
+      <article id="project" class="panel">
+        <div class="title"><div><small>STEP 02</small><h2>프로젝트</h2></div><button class="small ghost" id="loadProjects">목록 새로고침</button></div>
+        <div class="grid two">
+          <form id="projectForm" class="card"><h3>새 프로젝트</h3><label>프로젝트명<input name="name" value="가짜 합의 방지 프로젝트" required></label><label>설명<textarea name="description" required>팀원들의 숨은 의견을 안전하게 공유합니다.</textarea></label><button>프로젝트 생성</button></form>
+          <form id="joinForm" class="card"><h3>참여 코드로 참가</h3><label>8자리 참여 코드<input name="joinCode" maxlength="8" placeholder="AB12CD34" required></label><button>프로젝트 참가</button></form>
+        </div>
+        <div id="projectList" class="list empty">프로젝트 목록을 불러오세요.</div>
+      </article>
+
+      <article id="meeting" class="panel">
+        <div class="title"><div><small>STEP 03</small><h2>회의 생성</h2></div><span class="context">선택 프로젝트 <b data-project>없음</b></span></div>
+        <form id="meetingForm" class="card wide">
+          <div class="grid two"><label>회의 제목<input name="title" value="MVP 핵심 기능 회의" required></label><label>회의 목적<input name="purpose" value="5분 데모에 포함할 핵심 기능을 확정한다" required></label></div>
+          <label>안건 (한 줄에 하나)<textarea name="agendas" required>사전 인터뷰 데모 범위
+아이디어 보드 공개 방식
+회의 분석 결과 구성</textarea></label>
+          <div class="grid three"><label>날짜<input name="meetingDate" type="date" required></label><label>시작 시간<input name="startTime" type="time" value="14:00" required></label><label>예상 시간(분)<input name="expectedDurationMinutes" type="number" value="60" min="1" required></label></div>
+          <fieldset><legend>참여자</legend><div id="participants" class="checks">프로젝트를 먼저 선택하세요.</div></fieldset>
+          <button>회의 생성 + AI 질문 생성</button>
+        </form>
+        <button class="ghost" id="loadMeetings">선택 프로젝트의 회의 불러오기</button>
+        <div id="meetingList" class="list empty">회의가 없습니다.</div>
+      </article>
+
+      <article id="interview" class="panel">
+        <div class="title"><div><small>STEP 04</small><h2>AI 사전 인터뷰</h2></div><span class="context">선택 회의 <b data-meeting>없음</b></span></div>
+        <div class="actions"><button id="loadQuestions">질문 불러오기</button><button id="retryQuestions" class="ghost">질문 생성 재시도</button></div>
+        <form id="answerForm" class="card wide"><div id="questions" class="empty">회의를 선택하고 질문을 불러오세요.</div><button id="submitAnswers" hidden>답변 제출 + 아이디어 카드 생성</button></form>
+        <div id="myCard"></div>
+      </article>
+
+      <article id="board" class="panel">
+        <div class="title"><div><small>STEP 05</small><h2>익명 아이디어 보드</h2></div><span class="context">선택 회의 <b data-meeting>없음</b></span></div>
+        <div class="actions"><button id="loadCards">카드 불러오기</button><button id="refreshSummary">AI 전체 요약 새로고침</button></div>
+        <div id="cards" class="cards empty">등록된 카드를 불러오세요.</div><div id="summary"></div>
+      </article>
+
+      <article id="analysis" class="panel">
+        <div class="title"><div><small>STEP 06</small><h2>회의록 & 모호성 탐지</h2></div><span class="context">선택 회의 <b data-meeting>없음</b></span></div>
+        <form id="recordForm" class="card wide"><label>회의 내용<textarea name="content" rows="10" required>핵심 기능 위주로 최대한 빠르게 완성하기로 했습니다. 다음 주까지 적당히 정리해서 공유하기로 했습니다.</textarea></label><button>회의 내용 저장 + AI 분석</button></form>
+        <div class="actions"><button id="loadAnalysis">분석 결과 불러오기</button><button id="retryAnalysis" class="ghost">분석 재시도</button></div><div id="analysisResult"></div>
+      </article>
+    </div>
+
+    <aside><div class="aside-title"><b>API 응답</b><button id="clearLog">지우기</button></div><pre id="log">아직 요청이 없습니다.</pre></aside>
+  </section>
+</main>
+<div id="toast"></div>
+<script src="/api-tester/app.js?v=2"></script>
+</body>
+</html>
