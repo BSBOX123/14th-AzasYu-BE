@@ -1,6 +1,7 @@
 package com.azasyu.domain.meeting.controller;
 
 import com.azasyu.domain.meeting.dto.CreateMeetingRequest;
+import com.azasyu.domain.meeting.dto.JoinMeetingRequest;
 import com.azasyu.domain.meeting.dto.MeetingDetailResponse;
 import com.azasyu.domain.meeting.dto.MeetingSummaryResponse;
 import com.azasyu.domain.meeting.service.MeetingService;
@@ -21,7 +22,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "회의", description = "회의 생성과 조회. 안건과 참여자는 생성 시 함께 등록한다.")
+@Tag(
+    name = "회의",
+    description = """
+        회의 생성과 조회. 안건은 생성 시에만 등록한다.
+        참여자는 생성 시 지정하거나, 나중에 회의 참여 코드로 합류시킨다.
+        """
+)
 @SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequiredArgsConstructor
@@ -64,6 +71,34 @@ public class MeetingController {
     ) {
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResponse.success(meetingService.create(userId, projectId, request)));
+    }
+
+    @Operation(
+        summary = "회의 참여 코드로 합류",
+        description = """
+            회의 상세의 `joinCode`를 입력해 해당 회의의 참여자가 된다.
+            합류 직후 회의 상세를 그대로 반환하므로 별도 조회가 필요 없다.
+
+            **프로젝트 구성원만 합류할 수 있다.** 구성원이 아니면 프로젝트 참여 코드로
+            팀에 먼저 들어와야 하며, 이 경우 403 `PROJECT_MEMBER_REQUIRED`가 반환된다.
+
+            입력한 코드는 공백이 제거되고 대문자로 변환된 뒤 대조하므로
+            소문자로 입력해도 합류할 수 있다.
+
+            | 오류 | 상태 | 코드 |
+            |---|---|---|
+            | 입력 형식이 올바르지 않음 | 400 | `INVALID_REQUEST` |
+            | 프로젝트 구성원이 아님 | 403 | `PROJECT_MEMBER_REQUIRED` |
+            | 존재하지 않는 회의 참여 코드 | 404 | `MEETING_JOIN_CODE_NOT_FOUND` |
+            | 이미 참여 중인 회의 | 409 | `ALREADY_MEETING_PARTICIPANT` |
+            """
+    )
+    @PostMapping("/meetings/join")
+    ApiResponse<MeetingDetailResponse> join(
+        @AuthenticationPrincipal Long userId,
+        @Valid @RequestBody JoinMeetingRequest request
+    ) {
+        return ApiResponse.success(meetingService.joinByCode(userId, request));
     }
 
     @Operation(

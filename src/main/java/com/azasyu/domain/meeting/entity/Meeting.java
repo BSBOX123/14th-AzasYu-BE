@@ -53,6 +53,10 @@ public class Meeting {
     @Column(nullable = false)
     private Integer expectedDurationMinutes;
 
+    /** 프로젝트 구성원이 이 회의에 합류할 때 입력하는 8자리 코드. */
+    @Column(nullable = false, length = 8, unique = true)
+    private String joinCode;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -68,7 +72,8 @@ public class Meeting {
         String purpose,
         LocalDate meetingDate,
         LocalTime startTime,
-        Integer expectedDurationMinutes
+        Integer expectedDurationMinutes,
+        String joinCode
     ) {
         this.project = project;
         this.createdBy = createdBy;
@@ -77,5 +82,6 @@ public class Meeting {
         this.meetingDate = meetingDate;
         this.startTime = startTime;
         this.expectedDurationMinutes = expectedDurationMinutes;
+        this.joinCode = joinCode;
     }
 }

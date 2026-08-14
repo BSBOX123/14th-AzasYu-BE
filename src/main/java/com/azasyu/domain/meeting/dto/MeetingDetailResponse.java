@@ -20,6 +20,10 @@ public record MeetingDetailResponse(
     @Schema(description = "회의 목적", example = "해커톤에서 구현할 기능 범위를 확정한다.")
     String purpose,
 
+    @Schema(description = "회의 참여 코드. 프로젝트 구성원에게 공유해 회의에 합류시킨다.",
+        example = "K7M2QRTX")
+    String joinCode,
+
     @Schema(description = "안건 목록. order 오름차순으로 정렬된다.")
     List<AgendaResponse> agendas,
 
