@@ -9,6 +9,8 @@ public interface InterviewSubmissionRepository extends JpaRepository<InterviewSu
 
     boolean existsByMeetingIdAndUserId(Long meetingId, Long userId);
 
+    long countByMeetingId(Long meetingId);
+
     @EntityGraph(attributePaths = {"meeting", "user"})
     Optional<InterviewSubmission> findByMeetingIdAndUserId(Long meetingId, Long userId);
 }
