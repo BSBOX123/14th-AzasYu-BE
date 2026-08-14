@@ -1,6 +1,6 @@
 package com.azasyu.domain.meeting.ai;
 
-import com.azasyu.domain.meeting.Meeting;
+import com.azasyu.domain.meeting.entity.Meeting;
 
 /**
  * AI 클라이언트에 전달하는 회의 정보.
