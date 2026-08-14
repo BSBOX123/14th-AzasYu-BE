@@ -81,6 +81,12 @@ public class ProjectController {
         description = """
             로그인한 사용자가 참여 중인 프로젝트를 **최근 참여한 순**으로 반환한다.
             참여한 프로젝트가 없으면 빈 배열을 반환한다.
+
+            각 항목에 구성원 목록(`members`)과 프로젝트 생성 시각(`createdAt`)이 포함된다.
+            **참여 코드를 제외하면 상세 조회와 같은 정보이므로 목록 화면에서 상세를 다시 호출할 필요가 없다.**
+
+            `joinedAt`은 로그인한 사용자가 참여한 시각이고,
+            `members[].joinedAt`은 각 구성원이 참여한 시각이다.
             """
     )
     @GetMapping
