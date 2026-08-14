@@ -64,7 +64,14 @@ public class MeetingService {
             .findAllByProjectIdOrderByJoinedAtAsc(projectId).stream()
             .collect(Collectors.toMap(member -> member.getUser().getId(), Function.identity()));
 
-        LinkedHashSet<Long> participantIds = new LinkedHashSet<>(request.participantUserIds());
+        // 생성자는 지정 여부와 무관하게 항상 참여자로 등록한다. 참여자가 아니면 자기가 만든 회의의
+        // 인터뷰·원문·분석 기능을 쓸 수 없다. Set이라 명시적으로 넣어 보내도 중복되지 않는다.
+        LinkedHashSet<Long> participantIds = new LinkedHashSet<>();
+        participantIds.add(userId);
+        if (request.participantUserIds() != null) {
+            participantIds.addAll(request.participantUserIds());
+        }
+
         List<Long> invalidParticipantIds = participantIds.stream()
             .filter(participantId -> !projectMembers.containsKey(participantId))
             .toList();

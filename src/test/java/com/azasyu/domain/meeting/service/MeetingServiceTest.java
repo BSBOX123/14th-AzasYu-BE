@@ -46,6 +46,46 @@ class MeetingServiceTest {
     }
 
     @Test
+    void createsMeetingAloneWhenNoParticipantGiven() {
+        Long ownerId = signUp("solo-owner@example.com", "생성자");
+        var project = projectService.create(ownerId, new CreateProjectRequest("혼자 회의", "참여자 미지정"));
+
+        var created = meetingService.create(ownerId, project.id(), request(List.of()));
+
+        assertThat(created.participants())
+            .as("참여자를 지정하지 않아도 생성자는 참여자로 등록돼야 한다")
+            .extracting("userId")
+            .containsExactly(ownerId);
+    }
+
+    @Test
+    void addsCreatorAsParticipantEvenWhenNotListed() {
+        Long ownerId = signUp("absent-owner@example.com", "생성자");
+        Long memberId = signUp("listed-member@example.com", "참여자");
+        var project = projectService.create(ownerId, new CreateProjectRequest("생성자 누락", "자동 포함 확인"));
+        projectService.join(memberId, new JoinProjectRequest(project.joinCode()));
+
+        // 생성자를 빼고 팀원만 지정한다.
+        var created = meetingService.create(ownerId, project.id(), request(List.of(memberId)));
+
+        assertThat(created.participants()).extracting("userId")
+            .containsExactlyInAnyOrder(ownerId, memberId);
+        // 참여자여야 회의 원문·인터뷰 기능을 쓸 수 있다.
+        assertThat(interviewQuestionService.getQuestions(ownerId, created.id()).generationStatus())
+            .isEqualTo("NOT_CONFIGURED");
+    }
+
+    @Test
+    void doesNotDuplicateCreatorWhenListedExplicitly() {
+        Long ownerId = signUp("dup-owner@example.com", "생성자");
+        var project = projectService.create(ownerId, new CreateProjectRequest("중복 확인", "생성자 명시"));
+
+        var created = meetingService.create(ownerId, project.id(), request(List.of(ownerId, ownerId)));
+
+        assertThat(created.participants()).hasSize(1);
+    }
+
+    @Test
     void rejectsParticipantOutsideProject() {
         Long ownerId = signUp("meeting-owner2@example.com", "생성자");
         Long outsiderId = signUp("meeting-outsider@example.com", "외부인");
