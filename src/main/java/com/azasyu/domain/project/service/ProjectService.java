@@ -19,6 +19,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * 프로젝트 생성과 참여 코드 기반 참가.
+ *
+ * <p>구성원이 아닌 사용자에게는 존재 여부를 숨기기 위해 403이 아니라 404를 반환함.
+ */
 @Service
 @RequiredArgsConstructor
 public class ProjectService {
@@ -91,6 +96,12 @@ public class ProjectService {
             .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "USER_NOT_FOUND", "인증된 사용자를 찾을 수 없습니다."));
     }
 
+    /**
+     * 중복되지 않는 참여 코드를 만듦.
+     *
+     * <p>충돌 시 최대 {@value #JOIN_CODE_GENERATION_ATTEMPTS}회까지 재시도하고,
+     * 그래도 실패하면 예외를 던짐.
+     */
     private String createUniqueJoinCode() {
         for (int attempt = 0; attempt < JOIN_CODE_GENERATION_ATTEMPTS; attempt++) {
             String code = joinCodeGenerator.generate();

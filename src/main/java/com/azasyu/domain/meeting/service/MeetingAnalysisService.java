@@ -22,6 +22,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+/**
+ * 회의 원문에서 요약과 모호한 표현을 추출.
+ *
+ * <p>생성에 실패해도 예외를 던지지 않고 상태를 FAILED로 저장해 재시도할 수 있게 함. *
+ * <p>AI 호출은 트랜잭션 밖에서 수행함. 트랜잭션 안에서 호출하면 응답이 늦어질 때
+ * DB 커넥션이 그만큼 오래 점유됨. 상태 저장은 {@code TransactionTemplate}으로
+ * 짧은 트랜잭션을 열어 처리하므로 서비스 메서드에 {@code @Transactional}을 걸지 않음.
+ */
 @Service
 @RequiredArgsConstructor
 public class MeetingAnalysisService {
@@ -35,12 +43,7 @@ public class MeetingAnalysisService {
     private final MeetingAnalysisAiClient aiClient;
     private final TransactionTemplate transactionTemplate;
 
-    /**
-     * 회의 원문이 등록된 직후 분석을 시작한다.
-     *
-     * <p>메서드에 {@code @Transactional}을 걸지 않는다. AI 호출이 트랜잭션 안에서
-     * 일어나면 응답이 늦어질 때 DB 커넥션이 그만큼 오래 점유되기 때문이다.
-     */
+    /** 회의 원문이 등록된 직후 분석을 시작함. */
     public MeetingAnalysisResponse initializeAndGenerate(Long meetingId) {
         PendingAnalysis pending = transactionTemplate.execute(status -> {
             MeetingRecord record = getRecord(meetingId);
@@ -77,7 +80,7 @@ public class MeetingAnalysisService {
 
         MeetingAnalysisDraft draft;
         try {
-            // 트랜잭션 밖에서 호출한다. 응답이 지연돼도 DB 커넥션을 잡지 않는다.
+            // 트랜잭션 밖에서 호출함. 응답이 지연돼도 DB 커넥션을 잡지 않음.
             draft = aiClient.analyze(pending.meeting(), pending.recordContent());
         } catch (RuntimeException exception) {
             log.warn("Meeting analysis generation failed: meetingId={}", pending.meetingId(), exception);
@@ -103,7 +106,7 @@ public class MeetingAnalysisService {
                 return toResponse(analysis);
             });
         } catch (RuntimeException exception) {
-            // 저장 단계가 실패하면 상태가 PENDING에 멈춘다. FAILED로 내려 재시도할 수 있게 한다.
+            // 저장 단계가 실패하면 상태가 PENDING에 멈춤. FAILED로 내려 재시도할 수 있게 함.
             log.error("Meeting analysis result save failed: analysisId={}", pending.analysisId(), exception);
             return updateAnalysis(pending.analysisId(),
                 analysis -> analysis.failed("회의 분석 결과 저장에 실패했습니다. 잠시 후 다시 시도해 주세요."));
@@ -154,7 +157,7 @@ public class MeetingAnalysisService {
         }
     }
 
-    /** 트랜잭션 밖으로 넘기는 AI 호출 입력. 엔티티가 아니라 값만 담는다. */
+    /** 트랜잭션 밖으로 넘기는 AI 호출 입력. 엔티티가 아니라 값만 담음. */
     private record PendingAnalysis(Long analysisId, Long meetingId, MeetingContext meeting, String recordContent) {
     }
 }

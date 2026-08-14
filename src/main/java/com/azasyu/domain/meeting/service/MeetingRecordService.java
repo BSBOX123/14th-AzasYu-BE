@@ -18,6 +18,15 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
+/**
+ * 회의 원문 등록과 조회.
+ *
+ * <p>회의당 원문은 하나만 등록할 수 있고 수정·삭제는 지원하지 않음.
+ * 등록에 성공하면 회의 분석 생성을 이어서 시작함. *
+ * <p>AI 호출은 트랜잭션 밖에서 수행함. 트랜잭션 안에서 호출하면 응답이 늦어질 때
+ * DB 커넥션이 그만큼 오래 점유됨. 상태 저장은 {@code TransactionTemplate}으로
+ * 짧은 트랜잭션을 열어 처리하므로 서비스 메서드에 {@code @Transactional}을 걸지 않음.
+ */
 @Service
 @RequiredArgsConstructor
 public class MeetingRecordService {
@@ -32,10 +41,10 @@ public class MeetingRecordService {
     private final TransactionTemplate transactionTemplate;
 
     /**
-     * 회의 원문을 저장하고 분석 생성을 시작한다.
+     * 회의 원문을 저장하고 분석 생성을 시작함.
      *
-     * <p>메서드에 {@code @Transactional}을 걸지 않는다. 원문 저장을 먼저 커밋한 뒤
-     * 분석을 시작해야 AI 호출이 트랜잭션 밖에서 이루어진다.
+     * <p>메서드에 {@code @Transactional}을 걸지 않음. 원문 저장을 먼저 커밋해야
+     * 이어지는 AI 호출이 트랜잭션 밖에서 이루어짐.
      */
     public MeetingRecordResponse createFromText(Long userId, Long meetingId, String content) {
         return createAndAnalyze(userId, meetingId, MeetingRecordSourceType.TEXT, null, content);
@@ -45,7 +54,7 @@ public class MeetingRecordService {
         if (file == null || file.isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "EMPTY_DOCUMENT", "업로드할 파일이 비어 있습니다.");
         }
-        // 문서 텍스트 추출도 트랜잭션 밖에서 처리한다.
+        // 문서 텍스트 추출도 트랜잭션 밖에서 처리함.
         ExtractedDocument document = textExtractor.extract(file);
         return createAndAnalyze(userId, meetingId, document.sourceType(), document.fileName(), document.content());
     }

@@ -15,6 +15,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
 @Component
+/**
+ * 업로드 문서에서 회의 원문 텍스트를 추출.
+ *
+ * <p>TXT, DOCX, PDF만 지원함. 형식은 파일명 확장자로만 판별하므로 확장자와 실제 내용이
+ * 다르면 읽기 단계에서 {@code DOCUMENT_READ_FAILED}로 실패함.
+ */
 public class MeetingDocumentTextExtractor {
 
     public ExtractedDocument extract(MultipartFile file) {

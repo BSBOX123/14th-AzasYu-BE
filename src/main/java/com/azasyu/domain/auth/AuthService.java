@@ -14,6 +14,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * 회원가입과 로그인.
+ *
+ * <p>이메일은 공백 제거 후 소문자로 정규화해 저장·조회하므로 대소문자를 구분하지 않음.
+ */
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -35,6 +40,12 @@ public class AuthService {
         return createAuthResponse(user);
     }
 
+    /**
+     * 자격 증명을 확인하고 토큰을 발급함.
+     *
+     * <p>계정이 없는 경우와 비밀번호가 틀린 경우 모두 같은 오류를 반환해
+     * 이메일 가입 여부가 드러나지 않게 함.
+     */
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(normalizeEmail(request.email()))

@@ -18,6 +18,12 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
+/**
+ * 참여자 한 명의 인터뷰 답변 제출 단위.
+ *
+ * <p>AI 생성 상태를 {@link QuestionGenerationStatus}로 관리함. 상태 전이 메서드로만 값을 바꾸며,
+ * 실패해도 레코드를 지우지 않고 상태만 FAILED로 내려 재시도할 수 있게 함.
+ */
 @Getter
 @Entity
 @Table(

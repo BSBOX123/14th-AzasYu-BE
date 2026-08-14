@@ -26,6 +26,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+/**
+ * 회의 생성과 조회.
+ *
+ * <p>안건과 참여자는 회의 생성 시 함께 등록하며 별도 관리 API가 없음.
+ * 회의 상세는 참여자가 아니어도 프로젝트 구성원이면 조회할 수 있음. *
+ * <p>AI 호출은 트랜잭션 밖에서 수행함. 트랜잭션 안에서 호출하면 응답이 늦어질 때
+ * DB 커넥션이 그만큼 오래 점유됨. 상태 저장은 {@code TransactionTemplate}으로
+ * 짧은 트랜잭션을 열어 처리하므로 서비스 메서드에 {@code @Transactional}을 걸지 않음.
+ */
 @Service
 @RequiredArgsConstructor
 public class MeetingService {
@@ -38,10 +47,10 @@ public class MeetingService {
     private final TransactionTemplate transactionTemplate;
 
     /**
-     * 회의를 생성하고 공통 질문 생성을 시작한다.
+     * 회의를 생성하고 공통 질문 생성을 시작함.
      *
-     * <p>메서드에 {@code @Transactional}을 걸지 않는다. 회의 저장을 먼저 커밋한 뒤
-     * 질문 생성을 시작해야 AI 호출이 트랜잭션 밖에서 이루어진다.
+     * <p>메서드에 {@code @Transactional}을 걸지 않음. 회의 저장을 먼저 커밋해야
+     * 이어지는 AI 호출이 트랜잭션 밖에서 이루어짐.
      */
     public MeetingDetailResponse create(Long userId, Long projectId, CreateMeetingRequest request) {
         Long meetingId = transactionTemplate.execute(status -> createMeeting(userId, projectId, request));

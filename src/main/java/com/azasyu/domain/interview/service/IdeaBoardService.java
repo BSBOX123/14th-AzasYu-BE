@@ -25,6 +25,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+/**
+ * 익명 아이디어 카드 조회와 전체 의견 요약.
+ *
+ * <p>카드 응답에는 작성자를 식별할 수 있는 값을 담지 않음.
+ * 요약은 자동 생성되지 않고 새로고침 요청이 있을 때만 새 버전으로 저장함. *
+ * <p>AI 호출은 트랜잭션 밖에서 수행함. 트랜잭션 안에서 호출하면 응답이 늦어질 때
+ * DB 커넥션이 그만큼 오래 점유됨. 상태 저장은 {@code TransactionTemplate}으로
+ * 짧은 트랜잭션을 열어 처리하므로 서비스 메서드에 {@code @Transactional}을 걸지 않음.
+ */
 @Service
 @RequiredArgsConstructor
 public class IdeaBoardService {
@@ -59,11 +68,9 @@ public class IdeaBoardService {
     }
 
     /**
-     * 익명 카드 전체를 다시 요약한다.
+     * 익명 카드 전체를 다시 요약해 새 버전으로 저장함.
      *
-     * <p>메서드에 {@code @Transactional}을 걸지 않는다. AI 호출이 트랜잭션 안에서
-     * 일어나면 응답이 늦어질 때 DB 커넥션이 그만큼 오래 점유되기 때문이다.
-     * 검증과 저장만 각각 짧은 트랜잭션으로 처리한다.
+     * <p>다른 AI 기능과 달리 실패를 상태로 남기지 않고 예외로 반환함.
      */
     public IdeaSummaryResponse refreshSummary(Long userId, Long meetingId) {
         PendingSummary pending = transactionTemplate.execute(status -> {
@@ -83,7 +90,7 @@ public class IdeaBoardService {
 
         IdeaSummaryDraft draft;
         try {
-            // 트랜잭션 밖에서 호출한다. 응답이 지연돼도 DB 커넥션을 잡지 않는다.
+            // 트랜잭션 밖에서 호출함. 응답이 지연돼도 DB 커넥션을 잡지 않음.
             draft = summaryAiClient.generate(pending.meeting(), pending.cards());
         } catch (RuntimeException exception) {
             log.warn("Idea summary generation failed: meetingId={}", meetingId, exception);
@@ -93,7 +100,7 @@ public class IdeaBoardService {
         return transactionTemplate.execute(status -> {
             Meeting meeting = getMeeting(meetingId);
             User user = userRepository.findById(userId).orElseThrow();
-            // 버전은 저장 시점에 다시 계산한다. AI 호출 사이에 다른 요청이 저장했을 수 있다.
+            // 버전은 저장 시점에 다시 계산함. AI 호출 사이에 다른 요청이 저장했을 수 있음.
             int version = ideaSummaryRepository.findFirstByMeetingIdOrderByVersionDesc(meetingId)
                 .map(summary -> summary.getVersion() + 1).orElse(1);
             return toResponse(ideaSummaryRepository.save(new IdeaSummary(
@@ -122,7 +129,7 @@ public class IdeaBoardService {
         }
     }
 
-    /** 트랜잭션 밖으로 넘기는 AI 호출 입력. 엔티티가 아니라 값만 담는다. */
+    /** 트랜잭션 밖으로 넘기는 AI 호출 입력. 엔티티가 아니라 값만 담음. */
     private record PendingSummary(MeetingContext meeting, List<IdeaCardContext> cards) {
     }
 }

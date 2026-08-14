@@ -38,6 +38,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+/**
+ * 인터뷰 답변 제출과 개인 아이디어 카드 생성.
+ *
+ * <p>공통 질문 전체에 하나씩 답변해야 하며 회의당 1회만 제출할 수 있음. *
+ * <p>AI 호출은 트랜잭션 밖에서 수행함. 트랜잭션 안에서 호출하면 응답이 늦어질 때
+ * DB 커넥션이 그만큼 오래 점유됨. 상태 저장은 {@code TransactionTemplate}으로
+ * 짧은 트랜잭션을 열어 처리하므로 서비스 메서드에 {@code @Transactional}을 걸지 않음.
+ */
 @Service
 @RequiredArgsConstructor
 public class InterviewSubmissionService {
@@ -56,11 +64,9 @@ public class InterviewSubmissionService {
     private final TransactionTemplate transactionTemplate;
 
     /**
-     * 인터뷰 답변을 저장하고 아이디어 카드 생성을 시작한다.
+     * 인터뷰 답변을 저장하고 아이디어 카드 생성을 시작함.
      *
-     * <p>답변 저장까지를 먼저 커밋한 뒤 AI를 호출한다. AI 호출이 트랜잭션 안에서
-     * 일어나면 응답이 늦어질 때 DB 커넥션이 그만큼 오래 점유되기 때문이다.
-     * 제출 자체는 AI 성공 여부와 무관하게 보존된다.
+     * <p>답변 저장을 먼저 커밋하므로 카드 생성이 실패해도 제출 자체는 보존됨.
      */
     public InterviewSubmissionResponse submit(Long userId, Long meetingId, SubmitInterviewRequest request) {
         PendingCard pending = transactionTemplate.execute(status -> {
@@ -125,7 +131,7 @@ public class InterviewSubmissionService {
 
         IdeaCardDraft draft;
         try {
-            // 트랜잭션 밖에서 호출한다. 응답이 지연돼도 DB 커넥션을 잡지 않는다.
+            // 트랜잭션 밖에서 호출함. 응답이 지연돼도 DB 커넥션을 잡지 않음.
             draft = ideaCardAiClient.generate(pending.meeting(), pending.answers());
         } catch (RuntimeException exception) {
             log.warn("Idea card generation failed: submissionId={}", pending.submissionId(), exception);
@@ -143,7 +149,7 @@ public class InterviewSubmissionService {
                 return toResponse(submission);
             });
         } catch (RuntimeException exception) {
-            // 저장 단계가 실패하면 상태가 PENDING에 멈춘다. FAILED로 내려 재시도할 수 있게 한다.
+            // 저장 단계가 실패하면 상태가 PENDING에 멈춤. FAILED로 내려 재시도할 수 있게 함.
             log.error("Idea card save failed: submissionId={}", pending.submissionId(), exception);
             return updateSubmission(pending.submissionId(),
                 submission -> submission.failed("아이디어 카드 저장에 실패했습니다. 잠시 후 다시 시도해 주세요."));
@@ -196,7 +202,7 @@ public class InterviewSubmissionService {
         }
     }
 
-    /** 트랜잭션 밖으로 넘기는 AI 호출 입력. 엔티티가 아니라 값만 담는다. */
+    /** 트랜잭션 밖으로 넘기는 AI 호출 입력. 엔티티가 아니라 값만 담음. */
     private record PendingCard(Long submissionId, MeetingContext meeting, List<InterviewAnswerContext> answers) {
     }
 }
