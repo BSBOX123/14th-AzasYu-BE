@@ -2,6 +2,7 @@ package com.azasyu.domain.project.service;
 
 import com.azasyu.domain.project.dto.CreateProjectRequest;
 import com.azasyu.domain.project.dto.JoinProjectRequest;
+import com.azasyu.domain.project.dto.MemberResponse;
 import com.azasyu.domain.project.dto.ProjectDetailResponse;
 import com.azasyu.domain.project.dto.ProjectSummaryResponse;
 import com.azasyu.domain.project.entity.Project;
@@ -12,8 +13,11 @@ import com.azasyu.domain.project.repository.ProjectRepository;
 import com.azasyu.domain.user.User;
 import com.azasyu.domain.user.UserRepository;
 import com.azasyu.global.error.ApiException;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -59,16 +63,41 @@ public class ProjectService {
         return getDetail(userId, project.getId());
     }
 
+    /**
+     * 내가 참여 중인 프로젝트를 최근 참여 순으로 반환함.
+     *
+     * <p>구성원 목록까지 담으므로 목록 화면에서 상세를 다시 호출할 필요가 없음.
+     * 프로젝트마다 구성원을 따로 조회하면 N+1이 되므로 한 쿼리로 묶어 조회한 뒤 묶음.
+     */
     @Transactional(readOnly = true)
     public List<ProjectSummaryResponse> getMyProjects(Long userId) {
-        return projectMemberRepository.findAllByUserIdOrderByJoinedAtDesc(userId).stream()
-            .map(member -> new ProjectSummaryResponse(
-                member.getProject().getId(),
-                member.getProject().getName(),
-                member.getProject().getDescription(),
-                member.getRole(),
-                member.getJoinedAt()
-            ))
+        List<ProjectMember> myMemberships = projectMemberRepository.findAllByUserIdOrderByJoinedAtDesc(userId);
+        if (myMemberships.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> projectIds = myMemberships.stream().map(member -> member.getProject().getId()).toList();
+        Map<Long, List<MemberResponse>> membersByProject = projectMemberRepository
+            .findAllByProjectIdInOrderByJoinedAtAsc(projectIds).stream()
+            .collect(Collectors.groupingBy(
+                member -> member.getProject().getId(),
+                LinkedHashMap::new,
+                Collectors.mapping(this::toMemberResponse, Collectors.toList())
+            ));
+
+        return myMemberships.stream()
+            .map(membership -> {
+                Project project = membership.getProject();
+                return new ProjectSummaryResponse(
+                    project.getId(),
+                    project.getName(),
+                    project.getDescription(),
+                    membership.getRole(),
+                    membership.getJoinedAt(),
+                    project.getCreatedAt(),
+                    membersByProject.getOrDefault(project.getId(), List.of())
+                );
+            })
             .toList();
     }
 
@@ -78,16 +107,20 @@ public class ProjectService {
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PROJECT_NOT_FOUND", "프로젝트를 찾을 수 없습니다."));
 
         Project project = currentMember.getProject();
-        List<ProjectDetailResponse.MemberResponse> members = projectMemberRepository
+        List<MemberResponse> members = projectMemberRepository
             .findAllByProjectIdOrderByJoinedAtAsc(projectId).stream()
-            .map(member -> new ProjectDetailResponse.MemberResponse(
-                member.getUser().getId(), member.getUser().getName(), member.getRole(), member.getJoinedAt()
-            ))
+            .map(this::toMemberResponse)
             .toList();
 
         return new ProjectDetailResponse(
             project.getId(), project.getName(), project.getDescription(), project.getJoinCode(),
             currentMember.getRole(), project.getCreatedAt(), members
+        );
+    }
+
+    private MemberResponse toMemberResponse(ProjectMember member) {
+        return new MemberResponse(
+            member.getUser().getId(), member.getUser().getName(), member.getRole(), member.getJoinedAt()
         );
     }
 

@@ -2,11 +2,13 @@ package com.azasyu.domain.project.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import com.azasyu.domain.auth.AuthService;
 import com.azasyu.domain.auth.dto.SignUpRequest;
 import com.azasyu.domain.project.dto.CreateProjectRequest;
 import com.azasyu.domain.project.dto.JoinProjectRequest;
+import com.azasyu.domain.project.dto.MemberResponse;
 import com.azasyu.domain.project.repository.ProjectMemberRepository;
 import com.azasyu.domain.project.repository.ProjectRepository;
 import com.azasyu.global.error.ApiException;
@@ -36,6 +38,32 @@ class ProjectServiceTest {
         assertThat(joined.myRole()).isEqualTo("MEMBER");
         assertThat(joined.members()).hasSize(2);
         assertThat(projectService.getMyProjects(memberId)).hasSize(1);
+    }
+
+    @Test
+    void projectListIncludesMembersAndDates() {
+        Long ownerId = signUp("list-owner@example.com", "생성자");
+        Long memberId = signUp("list-member@example.com", "참여자");
+        var created = projectService.create(ownerId, new CreateProjectRequest("목록 확인", "구성원 포함 여부"));
+        projectService.join(memberId, new JoinProjectRequest(created.joinCode()));
+
+        var summary = projectService.getMyProjects(memberId).getFirst();
+
+        assertThat(summary.members())
+            .extracting(MemberResponse::name, MemberResponse::role)
+            .containsExactly(tuple("생성자", "OWNER"), tuple("참여자", "MEMBER"));
+        assertThat(summary.members()).allSatisfy(member -> assertThat(member.joinedAt()).isNotNull());
+        assertThat(summary.createdAt()).isNotNull();
+        assertThat(summary.joinedAt()).isNotNull();
+        // 목록만으로 상세 화면을 그릴 수 있어야 한다. 참여 코드만 상세 전용이다.
+        assertThat(summary.members()).hasSameSizeAs(projectService.getDetail(memberId, created.id()).members());
+    }
+
+    @Test
+    void projectListReturnsEmptyForUserWithoutProjects() {
+        Long lonelyUserId = signUp("no-project@example.com", "미참여자");
+
+        assertThat(projectService.getMyProjects(lonelyUserId)).isEmpty();
     }
 
     @Test
