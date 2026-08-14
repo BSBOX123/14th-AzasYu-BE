@@ -13,6 +13,7 @@ import com.azasyu.domain.interview.repository.InterviewQuestionSetRepository;
 import com.azasyu.domain.meeting.dto.CreateMeetingRequest;
 import com.azasyu.domain.meeting.service.MeetingService;
 import com.azasyu.domain.project.dto.CreateProjectRequest;
+import com.azasyu.domain.project.dto.JoinProjectRequest;
 import com.azasyu.domain.project.service.ProjectService;
 import com.azasyu.global.error.ApiException;
 import java.time.LocalDate;
@@ -60,6 +61,38 @@ class InterviewSubmissionServiceTest {
         assertThatThrownBy(() -> submissionService.submit(context.userId(), context.meetingId(), request))
             .isInstanceOf(ApiException.class)
             .hasMessage("모든 인터뷰 질문에 한 번씩 답변해야 합니다.");
+    }
+
+    @Test
+    void meetingDetailShowsInterviewProgress() {
+        Long ownerId = authService.signUp(new SignUpRequest("status-owner@example.com", "생성자", "password123")).userId();
+        Long memberId = authService.signUp(new SignUpRequest("status-member@example.com", "참여자", "password123")).userId();
+        var project = projectService.create(ownerId, new CreateProjectRequest("현황 확인", "진행률"));
+        projectService.join(memberId, new JoinProjectRequest(project.joinCode()));
+        var meeting = meetingService.create(ownerId, project.id(), new CreateMeetingRequest(
+            "현황 회의", "진행률 확인", List.of("안건"), LocalDate.now().plusDays(1),
+            LocalTime.of(15, 0), 60, List.of(ownerId, memberId)
+        ));
+        InterviewQuestionSet set = questionSetRepository.findByMeetingId(meeting.id()).orElseThrow();
+        set.generated();
+        InterviewQuestion question = questionRepository.save(new InterviewQuestion(set, 1, "질문"));
+
+        var before = meetingService.getDetail(ownerId, meeting.id()).interviewStatus();
+        assertThat(before.totalParticipants()).isEqualTo(2);
+        assertThat(before.submittedCount()).isZero();
+        assertThat(before.mySubmitted()).isFalse();
+
+        submissionService.submit(ownerId, meeting.id(), new SubmitInterviewRequest(
+            List.of(new SubmitInterviewRequest.AnswerRequest(question.getId(), "답변입니다."))
+        ));
+
+        var afterOwner = meetingService.getDetail(ownerId, meeting.id()).interviewStatus();
+        assertThat(afterOwner.submittedCount()).isEqualTo(1);
+        assertThat(afterOwner.mySubmitted()).as("제출한 본인은 true").isTrue();
+
+        var afterMember = meetingService.getDetail(memberId, meeting.id()).interviewStatus();
+        assertThat(afterMember.submittedCount()).as("제출 인원 수는 모두에게 같다").isEqualTo(1);
+        assertThat(afterMember.mySubmitted()).as("제출하지 않은 사람은 false").isFalse();
     }
 
     private TestContext prepareInterview(String email) {

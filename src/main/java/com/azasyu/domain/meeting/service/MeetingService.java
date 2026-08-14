@@ -1,6 +1,7 @@
 package com.azasyu.domain.meeting.service;
 
 import com.azasyu.domain.interview.service.InterviewQuestionService;
+import com.azasyu.domain.interview.service.InterviewSubmissionService;
 import com.azasyu.domain.meeting.dto.CreateMeetingRequest;
 import com.azasyu.domain.meeting.dto.JoinMeetingRequest;
 import com.azasyu.domain.meeting.dto.MeetingDetailResponse;
@@ -51,6 +52,7 @@ public class MeetingService {
     private final MeetingParticipantRepository meetingParticipantRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final InterviewQuestionService interviewQuestionService;
+    private final InterviewSubmissionService interviewSubmissionService;
     private final JoinCodeGenerator joinCodeGenerator;
     private final TransactionTemplate transactionTemplate;
 
@@ -174,12 +176,19 @@ public class MeetingService {
             ))
             .toList();
 
+        MeetingDetailResponse.InterviewStatusResponse interviewStatus =
+            new MeetingDetailResponse.InterviewStatusResponse(
+                participants.size(),
+                (int) interviewSubmissionService.countSubmissions(meetingId),
+                interviewSubmissionService.hasSubmitted(meetingId, userId)
+            );
+
         return new MeetingDetailResponse(
             meeting.getId(), meeting.getProject().getId(), meeting.getTitle(), meeting.getPurpose(),
             meeting.getJoinCode(), agendas,
             meeting.getMeetingDate(), meeting.getStartTime(), meeting.getExpectedDurationMinutes(),
             new MeetingDetailResponse.CreatorResponse(meeting.getCreatedBy().getId(), meeting.getCreatedBy().getName()),
-            participants, meeting.getCreatedAt()
+            participants, interviewStatus, meeting.getCreatedAt()
         );
     }
 

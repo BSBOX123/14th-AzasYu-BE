@@ -103,6 +103,22 @@ public class InterviewSubmissionService {
         return generateCardAndSave(pending);
     }
 
+    /**
+     * 회의에서 인터뷰를 제출한 인원 수.
+     *
+     * <p>회의 상세의 참여 현황 표시에 쓰므로 참여자 여부를 검사하지 않음.
+     */
+    @Transactional(readOnly = true)
+    public long countSubmissions(Long meetingId) {
+        return submissionRepository.countByMeetingId(meetingId);
+    }
+
+    /** 해당 사용자가 이 회의에 인터뷰를 제출했는지. 회의 참여자가 아니면 항상 false. */
+    @Transactional(readOnly = true)
+    public boolean hasSubmitted(Long meetingId, Long userId) {
+        return submissionRepository.existsByMeetingIdAndUserId(meetingId, userId);
+    }
+
     @Transactional(readOnly = true)
     public InterviewSubmissionResponse getMine(Long userId, Long meetingId) {
         requireParticipant(meetingId, userId);

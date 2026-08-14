@@ -124,8 +124,16 @@ public class MeetingController {
     @Operation(
         summary = "회의 상세 조회",
         description = """
-            안건, 참여자, 생성자를 포함한 회의 정보를 반환한다.
+            안건, 참여자, 생성자와 **사전 인터뷰 참여 현황**을 포함한 회의 정보를 반환한다.
+            회의 화면에 필요한 정보가 모두 들어 있어 별도 호출이 필요 없다.
+
+            `interviewStatus`로 진행률(`submittedCount`/`totalParticipants`)과
+            인터뷰 버튼 상태(`mySubmitted`)를 결정한다.
+            `mySubmitted`가 `true`일 때만 `GET .../interview/submissions/me`로
+            내 아이디어 카드를 조회하면 되므로 404를 만나지 않는다.
+
             **프로젝트 구성원이면 회의 참여자가 아니어도 조회할 수 있다.**
+            이 경우 `mySubmitted`는 항상 `false`다.
 
             | 오류 | 상태 | 코드 |
             |---|---|---|

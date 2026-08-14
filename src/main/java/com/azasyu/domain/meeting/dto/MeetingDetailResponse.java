@@ -42,9 +42,30 @@ public record MeetingDetailResponse(
     @Schema(description = "참여자 목록")
     List<ParticipantResponse> participants,
 
+    @Schema(description = "사전 인터뷰 참여 현황")
+    InterviewStatusResponse interviewStatus,
+
     @Schema(description = "회의 생성 시각", example = "2026-08-14T10:00:00")
     LocalDateTime createdAt
 ) {
+    @Schema(description = """
+        사전 인터뷰 참여 현황. 회의 화면의 진행률 표시와 인터뷰 버튼 상태 결정에 쓴다.
+        """)
+    public record InterviewStatusResponse(
+        @Schema(description = "회의 참여자 수", example = "6")
+        int totalParticipants,
+
+        @Schema(description = "인터뷰를 제출한 인원 수", example = "4")
+        int submittedCount,
+
+        @Schema(description = """
+            로그인한 사용자가 제출했는지 여부. 회의 참여자가 아니면 항상 `false`.
+            `true`면 내 아이디어 카드를 `GET .../interview/submissions/me`로 조회할 수 있다.
+            """, example = "false")
+        boolean mySubmitted
+    ) {
+    }
+
     @Schema(description = "회의 안건")
     public record AgendaResponse(
         @Schema(description = "안건 식별자", example = "1")
