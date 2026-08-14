@@ -1,5 +1,8 @@
 package com.azasyu.global.ai;
 
+/**
+ * Gemini 호출 실패. 상태 코드는 Gemini가 준 HTTP 상태이며, 타임아웃은 504로 표기함.
+ */
 public class GeminiApiException extends RuntimeException {
 
     private final int statusCode;
@@ -13,6 +16,7 @@ public class GeminiApiException extends RuntimeException {
         return statusCode;
     }
 
+    /** 상태 코드별로 사용자에게 보여줄 한국어 메시지를 만듦. */
     public String userMessage() {
         return switch (statusCode) {
             case 400 -> "Gemini 요청 형식이 올바르지 않습니다: " + getMessage();

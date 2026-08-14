@@ -15,6 +15,15 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+/**
+ * 시큐리티 필터체인 설정.
+ *
+ * <p>JWT 기반 무상태 인증이라 세션과 CSRF를 쓰지 않음. 인증 정보는
+ * {@link com.azasyu.global.security.JwtAuthenticationFilter}가 채움.
+ *
+ * <p>허용 오리진은 {@code app.cors.allowed-origins} 설정을 따르며,
+ * 인증 정보를 함께 보내는 구조이므로 전체 허용(*)을 쓰면 안 됨.
+ */
 @Configuration
 public class SecurityConfig {
 

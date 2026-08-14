@@ -27,6 +27,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+/**
+ * 회의 안건 기반 공통 질문 생성과 조회.
+ *
+ * <p>이미 GENERATED 상태면 재생성 요청을 무시함. 답변을 제출한 참여자가 있는데
+ * 질문이 바뀌면 답변이 어긋나기 때문임.
+ *
+ * <p>조회는 회의 참여자만, 재생성은 프로젝트 구성원이면 가능함. *
+ * <p>AI 호출은 트랜잭션 밖에서 수행함. 트랜잭션 안에서 호출하면 응답이 늦어질 때
+ * DB 커넥션이 그만큼 오래 점유됨. 상태 저장은 {@code TransactionTemplate}으로
+ * 짧은 트랜잭션을 열어 처리하므로 서비스 메서드에 {@code @Transactional}을 걸지 않음.
+ */
 @Service
 @RequiredArgsConstructor
 public class InterviewQuestionService {
@@ -42,13 +53,7 @@ public class InterviewQuestionService {
     private final InterviewQuestionAiClient aiClient;
     private final TransactionTemplate transactionTemplate;
 
-    /**
-     * 회의 생성 직후 공통 질문 생성을 시작한다.
-     *
-     * <p>메서드에 {@code @Transactional}을 걸지 않는다. AI 호출이 트랜잭션 안에서
-     * 일어나면 응답이 늦어질 때 DB 커넥션이 그만큼 오래 점유되기 때문이다.
-     * 상태 저장은 {@link TransactionTemplate}으로 짧은 트랜잭션을 열어 처리한다.
-     */
+    /** 회의 생성 직후 공통 질문 생성을 시작함. */
     public InterviewQuestionsResponse initializeAndGenerate(Long meetingId) {
         PendingGeneration pending = transactionTemplate.execute(status -> {
             Meeting meeting = getMeeting(meetingId);
@@ -90,7 +95,7 @@ public class InterviewQuestionService {
 
         List<String> generatedQuestions;
         try {
-            // 트랜잭션 밖에서 호출한다. 응답이 지연돼도 DB 커넥션을 잡지 않는다.
+            // 트랜잭션 밖에서 호출함. 응답이 지연돼도 DB 커넥션을 잡지 않음.
             generatedQuestions = aiClient.generate(pending.meeting(), pending.agendas());
         } catch (GeminiApiException exception) {
             log.warn("Gemini interview question generation failed: status={}, message={}",
@@ -115,7 +120,7 @@ public class InterviewQuestionService {
                 return toResponse(questionSet);
             });
         } catch (RuntimeException exception) {
-            // 저장 단계가 실패하면 상태가 PENDING에 멈춘다. FAILED로 내려 재시도할 수 있게 한다.
+            // 저장 단계가 실패하면 상태가 PENDING에 멈춤. FAILED로 내려 재시도할 수 있게 함.
             log.error("Interview question save failed: questionSetId={}", pending.questionSetId(), exception);
             return updateQuestionSet(pending.questionSetId(),
                 questionSet -> questionSet.failed("질문 저장에 실패했습니다. 잠시 후 다시 시도해 주세요."));
@@ -175,7 +180,7 @@ public class InterviewQuestionService {
         }
     }
 
-    /** 트랜잭션 밖으로 넘기는 AI 호출 입력. 엔티티가 아니라 값만 담는다. */
+    /** 트랜잭션 밖으로 넘기는 AI 호출 입력. 엔티티가 아니라 값만 담음. */
     private record PendingGeneration(Long questionSetId, MeetingContext meeting, List<String> agendas) {
     }
 }

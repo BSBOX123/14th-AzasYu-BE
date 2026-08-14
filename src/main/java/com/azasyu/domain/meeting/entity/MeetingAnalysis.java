@@ -16,6 +16,12 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+/**
+ * 회의 원문에서 추출한 요약과 모호성 탐지 결과.
+ *
+ * <p>AI 생성 상태를 {@link MeetingAnalysisStatus}로 관리함. 상태 전이 메서드로만 값을 바꾸며,
+ * 실패해도 레코드를 지우지 않고 상태만 FAILED로 내려 재시도할 수 있게 함.
+ */
 @Getter
 @Entity
 @Table(name = "meeting_analyses")

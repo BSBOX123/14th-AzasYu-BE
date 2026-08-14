@@ -13,6 +13,15 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+/**
+ * Authorization 헤더의 Bearer 토큰을 검증해 SecurityContext에 인증 정보를 넣음.
+ *
+ * <p>토큰이 없거나 유효하지 않아도 예외를 던지지 않고 요청을 통과시킴. 인증이 필요한 경로의
+ * 차단은 {@link com.azasyu.global.config.SecurityConfig}의 권한 설정이 담당함.
+ *
+ * <p>인증 주체(principal)로 사용자 식별자({@code Long})를 넣으므로 컨트롤러에서
+ * {@code @AuthenticationPrincipal Long userId}로 받음.
+ */
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
