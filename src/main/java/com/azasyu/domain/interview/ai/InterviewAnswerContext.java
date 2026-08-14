@@ -1,6 +1,6 @@
 package com.azasyu.domain.interview.ai;
 
-import com.azasyu.domain.interview.InterviewAnswer;
+import com.azasyu.domain.interview.entity.InterviewAnswer;
 
 /**
  * AI 클라이언트에 전달하는 인터뷰 답변 한 건.

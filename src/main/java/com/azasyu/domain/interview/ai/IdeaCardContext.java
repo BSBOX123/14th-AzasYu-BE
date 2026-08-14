@@ -1,6 +1,6 @@
 package com.azasyu.domain.interview.ai;
 
-import com.azasyu.domain.interview.IdeaCard;
+import com.azasyu.domain.interview.entity.IdeaCard;
 
 /**
  * 전체 의견 요약의 입력이 되는 익명 아이디어 카드 한 장.
