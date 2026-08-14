@@ -34,9 +34,13 @@ public record CreateMeetingRequest(
     @NotNull @Positive Integer expectedDurationMinutes,
 
     @Schema(description = """
-        참여자 사용자 식별자 목록. 최소 1명 필요하며 **모두 해당 프로젝트의 구성원**이어야 한다.
-        중복은 자동으로 제거된다.
+        회의를 만들면서 함께 등록할 참여자 목록. **생략하거나 빈 배열로 보낼 수 있다.**
+
+        생성자는 지정하지 않아도 항상 참여자로 등록되므로, 혼자 회의를 만든 뒤
+        나머지 인원을 나중에 합류시키는 방식으로 써도 된다.
+
+        지정하는 경우 **모두 해당 프로젝트의 구성원**이어야 한다. 중복과 생성자 중복은 자동으로 제거된다.
         """, example = "[1, 2, 3]")
-    @NotEmpty List<@NotNull Long> participantUserIds
+    List<@NotNull Long> participantUserIds
 ) {
 }
