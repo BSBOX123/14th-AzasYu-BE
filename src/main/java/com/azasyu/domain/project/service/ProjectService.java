@@ -1,6 +1,7 @@
 package com.azasyu.domain.project.service;
 
 import com.azasyu.domain.project.dto.CreateProjectRequest;
+import com.azasyu.global.support.JoinCodeGenerator;
 import com.azasyu.domain.project.dto.JoinProjectRequest;
 import com.azasyu.domain.project.dto.MemberResponse;
 import com.azasyu.domain.project.dto.ProjectDetailResponse;

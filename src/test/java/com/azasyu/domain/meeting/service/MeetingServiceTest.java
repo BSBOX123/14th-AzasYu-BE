@@ -7,13 +7,15 @@ import com.azasyu.domain.auth.AuthService;
 import com.azasyu.domain.auth.dto.SignUpRequest;
 import com.azasyu.domain.interview.service.InterviewQuestionService;
 import com.azasyu.domain.meeting.dto.CreateMeetingRequest;
-import com.azasyu.domain.project.service.ProjectService;
+import com.azasyu.domain.meeting.dto.JoinMeetingRequest;
 import com.azasyu.domain.project.dto.CreateProjectRequest;
 import com.azasyu.domain.project.dto.JoinProjectRequest;
+import com.azasyu.domain.project.service.ProjectService;
 import com.azasyu.global.error.ApiException;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Locale;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -83,6 +85,69 @@ class MeetingServiceTest {
         var created = meetingService.create(ownerId, project.id(), request(List.of(ownerId, ownerId)));
 
         assertThat(created.participants()).hasSize(1);
+    }
+
+    @Test
+    void projectMemberJoinsMeetingWithCode() {
+        Long ownerId = signUp("code-owner@example.com", "생성자");
+        Long memberId = signUp("code-member@example.com", "합류자");
+        var project = projectService.create(ownerId, new CreateProjectRequest("코드 합류", "회의 코드"));
+        projectService.join(memberId, new JoinProjectRequest(project.joinCode()));
+        var meeting = meetingService.create(ownerId, project.id(), request(List.of()));
+
+        // 소문자로 보내도 합류돼야 한다.
+        var joined = meetingService.joinByCode(
+            memberId, new JoinMeetingRequest(meeting.joinCode().toLowerCase(Locale.ROOT)));
+
+        assertThat(joined.participants()).extracting("userId")
+            .containsExactlyInAnyOrder(ownerId, memberId);
+        // 참여자가 됐으므로 회의 기능을 쓸 수 있다.
+        assertThat(interviewQuestionService.getQuestions(memberId, meeting.id()).generationStatus())
+            .isEqualTo("NOT_CONFIGURED");
+    }
+
+    @Test
+    void rejectsMeetingJoinFromNonProjectMember() {
+        Long ownerId = signUp("code-owner2@example.com", "생성자");
+        Long outsiderId = signUp("code-outsider@example.com", "외부인");
+        var project = projectService.create(ownerId, new CreateProjectRequest("코드 거부", "구성원 아님"));
+        var meeting = meetingService.create(ownerId, project.id(), request(List.of()));
+
+        assertThatThrownBy(() -> meetingService.joinByCode(outsiderId, new JoinMeetingRequest(meeting.joinCode())))
+            .isInstanceOf(ApiException.class)
+            .hasMessage("프로젝트에 먼저 참여해야 회의에 합류할 수 있습니다.");
+    }
+
+    @Test
+    void rejectsDuplicateMeetingJoin() {
+        Long ownerId = signUp("code-owner3@example.com", "생성자");
+        var project = projectService.create(ownerId, new CreateProjectRequest("중복 합류", "이미 참여자"));
+        var meeting = meetingService.create(ownerId, project.id(), request(List.of()));
+
+        // 생성자는 이미 참여자다.
+        assertThatThrownBy(() -> meetingService.joinByCode(ownerId, new JoinMeetingRequest(meeting.joinCode())))
+            .isInstanceOf(ApiException.class)
+            .hasMessage("이미 참여 중인 회의입니다.");
+    }
+
+    @Test
+    void rejectsUnknownMeetingJoinCode() {
+        Long userId = signUp("code-unknown@example.com", "사용자");
+
+        assertThatThrownBy(() -> meetingService.joinByCode(userId, new JoinMeetingRequest("ZZZZ9999")))
+            .isInstanceOf(ApiException.class)
+            .hasMessage("유효하지 않은 회의 참여 코드입니다.");
+    }
+
+    @Test
+    void meetingsHaveDistinctJoinCodes() {
+        Long ownerId = signUp("code-distinct@example.com", "생성자");
+        var project = projectService.create(ownerId, new CreateProjectRequest("코드 중복", "유일성"));
+
+        var first = meetingService.create(ownerId, project.id(), request(List.of()));
+        var second = meetingService.create(ownerId, project.id(), request(List.of()));
+
+        assertThat(first.joinCode()).isNotBlank().hasSize(8).isNotEqualTo(second.joinCode());
     }
 
     @Test

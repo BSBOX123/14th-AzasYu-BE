@@ -13,4 +13,9 @@ public interface MeetingRepository extends JpaRepository<Meeting, Long> {
 
     @EntityGraph(attributePaths = {"project", "createdBy"})
     Optional<Meeting> findWithDetailsById(Long meetingId);
+
+    boolean existsByJoinCode(String joinCode);
+
+    @EntityGraph(attributePaths = {"project", "createdBy"})
+    Optional<Meeting> findByJoinCode(String joinCode);
 }
