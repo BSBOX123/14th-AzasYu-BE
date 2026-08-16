@@ -7,5 +7,9 @@ public interface IdeaCardAiClient {
 
     boolean isConfigured();
 
-    IdeaCardDraft generate(MeetingContext meeting, List<InterviewAnswerContext> answers);
+    IdeaCardDraft generate(
+        MeetingContext meeting,
+        List<String> agendas,
+        List<InterviewAnswerContext> answers
+    );
 }

@@ -18,6 +18,7 @@ import com.azasyu.domain.interview.repository.InterviewQuestionSetRepository;
 import com.azasyu.domain.interview.repository.InterviewSubmissionRepository;
 import com.azasyu.domain.meeting.ai.MeetingContext;
 import com.azasyu.domain.meeting.entity.Meeting;
+import com.azasyu.domain.meeting.repository.MeetingAgendaRepository;
 import com.azasyu.domain.meeting.repository.MeetingParticipantRepository;
 import com.azasyu.domain.meeting.repository.MeetingRepository;
 import com.azasyu.domain.user.User;
@@ -58,6 +59,7 @@ public class InterviewSubmissionService {
     private final InterviewQuestionRepository questionRepository;
     private final IdeaCardRepository ideaCardRepository;
     private final MeetingRepository meetingRepository;
+    private final MeetingAgendaRepository meetingAgendaRepository;
     private final MeetingParticipantRepository participantRepository;
     private final UserRepository userRepository;
     private final IdeaCardAiClient ideaCardAiClient;
@@ -148,7 +150,7 @@ public class InterviewSubmissionService {
         IdeaCardDraft draft;
         try {
             // 트랜잭션 밖에서 호출함. 응답이 지연돼도 DB 커넥션을 잡지 않음.
-            draft = ideaCardAiClient.generate(pending.meeting(), pending.answers());
+            draft = ideaCardAiClient.generate(pending.meeting(), pending.agendas(), pending.answers());
         } catch (RuntimeException exception) {
             log.warn("Idea card generation failed: submissionId={}", pending.submissionId(), exception);
             return updateSubmission(pending.submissionId(),
@@ -181,11 +183,15 @@ public class InterviewSubmissionService {
     }
 
     private PendingCard toPendingCard(InterviewSubmission submission, Meeting meeting) {
+        List<String> agendas = meetingAgendaRepository
+            .findAllByMeetingIdOrderByAgendaOrderAsc(meeting.getId()).stream()
+            .map(agenda -> agenda.getContent())
+            .toList();
         List<InterviewAnswerContext> answers = answerRepository
             .findAllBySubmissionIdOrderByQuestionQuestionOrderAsc(submission.getId()).stream()
             .map(InterviewAnswerContext::from)
             .toList();
-        return new PendingCard(submission.getId(), MeetingContext.from(meeting), answers);
+        return new PendingCard(submission.getId(), MeetingContext.from(meeting), agendas, answers);
     }
 
     private InterviewSubmission getSubmission(Long meetingId, Long userId) {
@@ -219,6 +225,11 @@ public class InterviewSubmissionService {
     }
 
     /** 트랜잭션 밖으로 넘기는 AI 호출 입력. 엔티티가 아니라 값만 담음. */
-    private record PendingCard(Long submissionId, MeetingContext meeting, List<InterviewAnswerContext> answers) {
+    private record PendingCard(
+        Long submissionId,
+        MeetingContext meeting,
+        List<String> agendas,
+        List<InterviewAnswerContext> answers
+    ) {
     }
 }

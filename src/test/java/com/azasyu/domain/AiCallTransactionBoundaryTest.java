@@ -165,7 +165,11 @@ class AiCallTransactionBoundaryTest {
                 }
 
                 @Override
-                public IdeaCardDraft generate(MeetingContext meeting, List<InterviewAnswerContext> answers) {
+                public IdeaCardDraft generate(
+                    MeetingContext meeting,
+                    List<String> agendas,
+                    List<InterviewAnswerContext> answers
+                ) {
                     probe.ideaCardClientInTransaction = TransactionSynchronizationManager.isActualTransactionActive();
                     return new IdeaCardDraft("핵심", "이유", "우려", "대안");
                 }
