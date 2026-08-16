@@ -65,6 +65,7 @@ public class OpenAiInterviewQuestionClient implements InterviewQuestionAiClient 
             """;
     }
 
+    //회의 제목, 목적, 안건만 llm에 전달. -> 퀄리티 높은 질문
     private String meetingPrompt(MeetingContext meeting, List<String> agendas) {
         String agendaText = String.join("\n", agendas.stream().map(agenda -> "- " + agenda).toList());
         return "회의 제목: " + meeting.title() + "\n회의 목적: " + meeting.purpose() + "\n안건:\n" + agendaText;
