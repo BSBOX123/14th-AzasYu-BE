@@ -22,6 +22,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -141,14 +142,36 @@ public class MeetingService {
         return buildDetail(userId, meeting.getId());
     }
 
+    /**
+     * 프로젝트의 회의 목록을 반환함.
+     *
+     * <p>프로젝트 구성원이면 참여자가 아닌 회의까지 모두 보임. 구분할 수 있도록 항목마다
+     * {@code participating}을 함께 내려줌.
+     *
+     * <p>참여자 수와 내 참여 여부는 회의마다 조회하면 N+1이 되므로 각각 한 번의 집계 쿼리로 처리함.
+     * 회의 수와 무관하게 쿼리 3개로 고정됨.
+     */
     @Transactional(readOnly = true)
     public List<MeetingSummaryResponse> getProjectMeetings(Long userId, Long projectId) {
         getProjectMember(projectId, userId);
-        return meetingRepository.findAllByProjectIdOrderByMeetingDateDescStartTimeDesc(projectId).stream()
+        List<Meeting> meetings =
+            meetingRepository.findAllByProjectIdOrderByMeetingDateDescStartTimeDesc(projectId);
+        if (meetings.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> meetingIds = meetings.stream().map(Meeting::getId).toList();
+        Map<Long, Integer> participantCounts = meetingParticipantRepository.countByMeetingIds(meetingIds).stream()
+            .collect(Collectors.toMap(row -> (Long) row[0], row -> ((Number) row[1]).intValue()));
+        Set<Long> participatingMeetingIds =
+            meetingParticipantRepository.findParticipatingMeetingIds(meetingIds, userId);
+
+        return meetings.stream()
             .map(meeting -> new MeetingSummaryResponse(
                 meeting.getId(), meeting.getTitle(), meeting.getPurpose(), meeting.getMeetingDate(),
                 meeting.getStartTime(), meeting.getExpectedDurationMinutes(),
-                meetingParticipantRepository.findAllByMeetingIdOrderByIdAsc(meeting.getId()).size()
+                participantCounts.getOrDefault(meeting.getId(), 0),
+                participatingMeetingIds.contains(meeting.getId())
             ))
             .toList();
     }

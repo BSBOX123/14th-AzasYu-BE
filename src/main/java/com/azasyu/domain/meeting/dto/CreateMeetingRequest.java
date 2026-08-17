@@ -14,24 +14,35 @@ import java.util.List;
 @Schema(description = "회의 생성 요청. 안건과 참여자를 함께 등록한다.")
 public record CreateMeetingRequest(
     @Schema(description = "회의 제목 (최대 150자)", example = "MVP 기능 범위 확정")
-    @NotBlank @Size(max = 150) String title,
+    @NotBlank(message = "회의 제목을 입력해 주세요")
+    @Size(max = 150, message = "회의 제목은 150자 이하로 입력해 주세요")
+    String title,
 
     @Schema(description = "회의 목적 (최대 1000자). AI 질문·분석 생성의 입력으로도 쓰인다.",
         example = "해커톤에서 구현할 기능 범위를 확정한다.")
-    @NotBlank @Size(max = 1000) String purpose,
+    @NotBlank(message = "회의 목적을 입력해 주세요")
+    @Size(max = 1000, message = "회의 목적은 1000자 이하로 입력해 주세요")
+    String purpose,
 
     @Schema(description = "안건 목록. 최소 1개 필요하며 보낸 순서대로 번호가 매겨진다. 각 500자 이하.",
         example = "[\"핵심 기능 범위\", \"발표 시나리오\"]")
-    @NotEmpty List<@NotBlank @Size(max = 500) String> agendas,
+    @NotEmpty(message = "안건을 최소 1개 입력해 주세요")
+    List<@NotBlank(message = "안건 내용을 입력해 주세요")
+        @Size(max = 500, message = "안건은 500자 이하로 입력해 주세요") String> agendas,
 
     @Schema(description = "회의 날짜. 오늘 이후여야 한다.", example = "2026-09-01")
-    @NotNull @FutureOrPresent LocalDate meetingDate,
+    @NotNull(message = "회의 날짜를 입력해 주세요")
+    @FutureOrPresent(message = "회의 날짜는 오늘 이후여야 합니다")
+    LocalDate meetingDate,
 
     @Schema(description = "시작 시각", example = "14:00:00")
-    @NotNull LocalTime startTime,
+    @NotNull(message = "시작 시각을 입력해 주세요")
+    LocalTime startTime,
 
     @Schema(description = "예상 소요 시간(분). 1 이상.", example = "60")
-    @NotNull @Positive Integer expectedDurationMinutes,
+    @NotNull(message = "예상 소요 시간을 입력해 주세요")
+    @Positive(message = "예상 소요 시간은 1분 이상이어야 합니다")
+    Integer expectedDurationMinutes,
 
     @Schema(description = """
         회의를 만들면서 함께 등록할 참여자 목록. **생략하거나 빈 배열로 보낼 수 있다.**

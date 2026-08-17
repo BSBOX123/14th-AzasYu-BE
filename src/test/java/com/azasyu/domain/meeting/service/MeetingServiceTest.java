@@ -8,6 +8,7 @@ import com.azasyu.domain.auth.dto.SignUpRequest;
 import com.azasyu.domain.interview.service.InterviewQuestionService;
 import com.azasyu.domain.meeting.dto.CreateMeetingRequest;
 import com.azasyu.domain.meeting.dto.JoinMeetingRequest;
+import com.azasyu.domain.meeting.dto.MeetingSummaryResponse;
 import com.azasyu.domain.project.dto.CreateProjectRequest;
 import com.azasyu.domain.project.dto.JoinProjectRequest;
 import com.azasyu.domain.project.service.ProjectService;
@@ -148,6 +149,40 @@ class MeetingServiceTest {
         var second = meetingService.create(ownerId, project.id(), request(List.of()));
 
         assertThat(first.joinCode()).isNotBlank().hasSize(8).isNotEqualTo(second.joinCode());
+    }
+
+    @Test
+    void meetingListMarksWhetherIParticipate() {
+        Long ownerId = signUp("list-owner@example.com", "생성자");
+        Long memberId = signUp("list-member@example.com", "구성원");
+        var project = projectService.create(ownerId, new CreateProjectRequest("참여 구분", "목록 표시"));
+        projectService.join(memberId, new JoinProjectRequest(project.joinCode()));
+
+        // 생성자만 참여하는 회의 하나, 둘 다 참여하는 회의 하나
+        var soloMeeting = meetingService.create(ownerId, project.id(), request(List.of()));
+        var sharedMeeting = meetingService.create(ownerId, project.id(), request(List.of(memberId)));
+
+        var asMember = meetingService.getProjectMeetings(memberId, project.id());
+
+        assertThat(asMember)
+            .as("프로젝트 구성원이면 참여하지 않는 회의도 목록에 보여야 한다")
+            .hasSize(2);
+        assertThat(asMember).filteredOn(m -> m.id().equals(soloMeeting.id()))
+            .singleElement()
+            .satisfies(m -> {
+                assertThat(m.participating()).as("참여하지 않은 회의").isFalse();
+                assertThat(m.participantCount()).isEqualTo(1);
+            });
+        assertThat(asMember).filteredOn(m -> m.id().equals(sharedMeeting.id()))
+            .singleElement()
+            .satisfies(m -> {
+                assertThat(m.participating()).as("참여 중인 회의").isTrue();
+                assertThat(m.participantCount()).isEqualTo(2);
+            });
+
+        assertThat(meetingService.getProjectMeetings(ownerId, project.id()))
+            .as("생성자는 두 회의 모두 참여자다")
+            .allMatch(MeetingSummaryResponse::participating);
     }
 
     @Test
