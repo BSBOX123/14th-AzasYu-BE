@@ -3,6 +3,7 @@ package com.azasyu.global.error;
 import com.azasyu.global.api.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -31,6 +32,13 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.badRequest()
             .body(ApiResponse.error("INVALID_REQUEST", message));
+    }
+
+    /** JSON 문법 오류나 enum에 없는 값도 서버 오류가 아닌 잘못된 요청으로 처리함. */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    ResponseEntity<ApiResponse<Void>> handleUnreadableRequest(HttpMessageNotReadableException exception) {
+        return ResponseEntity.badRequest()
+            .body(ApiResponse.error("INVALID_REQUEST", "요청 값이 올바르지 않습니다."));
     }
 
     @ExceptionHandler(Exception.class)

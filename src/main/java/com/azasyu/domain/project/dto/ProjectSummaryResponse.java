@@ -1,5 +1,6 @@
 package com.azasyu.domain.project.dto;
 
+import com.azasyu.domain.project.entity.ProjectColor;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -17,6 +18,9 @@ public record ProjectSummaryResponse(
 
     @Schema(description = "프로젝트 설명", example = "가짜 합의를 줄이는 협업 서비스를 만든다.")
     String description,
+
+    @Schema(description = "프로젝트 카드 색상", example = "BLUE")
+    ProjectColor color,
 
     @Schema(description = "이 프로젝트에서 내 역할", example = "OWNER",
         allowableValues = {"OWNER", "MEMBER"})

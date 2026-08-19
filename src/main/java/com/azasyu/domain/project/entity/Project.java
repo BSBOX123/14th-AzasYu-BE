@@ -2,6 +2,8 @@ package com.azasyu.domain.project.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -32,6 +34,10 @@ public class Project {
     @Column(nullable = false, unique = true, length = 8)
     private String joinCode;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private ProjectColor color;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -40,9 +46,10 @@ public class Project {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
-    public Project(String name, String description, String joinCode) {
+    public Project(String name, String description, String joinCode, ProjectColor color) {
         this.name = name;
         this.description = description;
         this.joinCode = joinCode;
+        this.color = color;
     }
 }
