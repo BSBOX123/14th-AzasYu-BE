@@ -32,6 +32,9 @@ public record IdeaSummaryResponse(
     @Schema(description = "추가 논의가 필요한 지점")
     String discussionPoints,
 
+    @Schema(description = "요약 생성 이후 카드가 수정·삭제되어 새로고침이 필요한지 여부", example = "true")
+    boolean isOutdated,
+
     @Schema(description = "요약 생성 시각", example = "2026-08-14T16:00:00")
     LocalDateTime refreshedAt
 ) {

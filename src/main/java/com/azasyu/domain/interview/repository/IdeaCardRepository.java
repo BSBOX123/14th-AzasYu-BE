@@ -10,6 +10,15 @@ public interface IdeaCardRepository extends JpaRepository<IdeaCard, Long> {
 
     Optional<IdeaCard> findBySubmissionId(Long submissionId);
 
-    @EntityGraph(attributePaths = "submission")
-    List<IdeaCard> findAllBySubmissionMeetingIdOrderByCreatedAtAsc(Long meetingId);
+    @EntityGraph(attributePaths = {"submission", "submission.user"})
+    List<IdeaCard> findAllBySubmissionMeetingIdAndVisibleTrueOrderByCreatedAtAsc(Long meetingId);
+
+    @EntityGraph(attributePaths = {"submission", "submission.user"})
+    Optional<IdeaCard> findByIdAndSubmissionMeetingId(Long cardId, Long meetingId);
+
+    long countBySubmissionMeetingIdAndVisibleTrue(Long meetingId);
+
+    boolean existsBySubmissionMeetingIdAndVisibleTrueAndUpdatedAtAfter(
+        Long meetingId, java.time.LocalDateTime refreshedAt
+    );
 }

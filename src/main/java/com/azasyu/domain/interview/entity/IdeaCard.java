@@ -14,6 +14,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 @Getter
 @Entity
@@ -45,6 +46,13 @@ public class IdeaCard {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @UpdateTimestamp
+    @Column(nullable = false)
+    private LocalDateTime updatedAt;
+
+    @Column(nullable = false)
+    private boolean visible = true;
+
     public IdeaCard(
         InterviewSubmission submission,
         String coreOpinion,
@@ -57,5 +65,16 @@ public class IdeaCard {
         this.rationale = rationale;
         this.concern = concern;
         this.alternative = alternative;
+    }
+
+    public void update(String coreOpinion, String rationale, String concern, String alternative) {
+        this.coreOpinion = coreOpinion;
+        this.rationale = rationale;
+        this.concern = concern;
+        this.alternative = alternative;
+    }
+
+    public void hide() {
+        this.visible = false;
     }
 }
