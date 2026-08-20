@@ -9,12 +9,13 @@
 ### 핵심 기능
 
 - 회원가입 및 로그인
-- 프로젝트 생성 및 참여
-- AI 사전 인터뷰
-- 익명 의견 공유
-- 회의 내용 기록
+- 참여 코드 기반 프로젝트 생성 및 참여
+- 회의 생성과 참여 코드 합류
+- AI 사전 인터뷰 (회의별 공통 질문 자동 생성)
+- 익명 아이디어 보드 및 내 카드 수정·삭제
+- AI 전체 의견 요약
+- 회의 원문 기록 (직접 입력, TXT·DOCX·PDF 업로드)
 - AI 기반 모호한 표현 탐지
-- 프로젝트 및 회의 결과 관리
 
 <br>
 
@@ -77,25 +78,26 @@
 <br>
 
 ## 🛠 기술 스택
-추후 업데이트 예정.
 
 ### Backend
 
 - Language: Java 21
 - Framework: Spring Boot 4.1
-- Database: MySQL 8.4, Spring Data JPA
+- Database: MySQL 8.4 (운영), H2 (로컬·테스트)
+- Persistence: Spring Data JPA, Flyway (스키마 마이그레이션)
 - Authentication: Spring Security, JWT
+- Documentation: springdoc-openapi (Swagger UI)
 
 ### AI
 
-- AI Model: 환경 변수로 설정
-- AI API: Google Gemini API (`gemini-3.5-flash-lite`)
+- AI API: Google Gemini API
+- 기본 모델: `gemini-3.5-flash-lite` (환경변수 `GEMINI_MODEL`로 변경 가능)
 
 ### Infrastructure
 
-- Cloud: AWS
-- Database: MySQL
-- Container: Docker
+- Cloud: AWS EC2 (Ubuntu 24.04)
+- Container: Docker, Docker Compose (`app` + `mysql`)
+- CI: GitHub Actions — 테스트와 MySQL 기동 검증
 
 ## 💻 로컬 실행
 
@@ -110,7 +112,9 @@
 - H2 Console: `http://localhost:8080/h2-console`
 - 테스트: `./gradlew test`
 
-배포 환경에서는 `SPRING_PROFILES_ACTIVE=prod`와 DB 환경변수를 설정해 MySQL을 사용합니다.
+기본 프로필은 `local`입니다. 배포 환경에서는 `SPRING_PROFILES_ACTIVE=prod`와 DB 환경변수를
+설정해 MySQL을 사용합니다. 스키마는 두 환경 모두 Flyway가 적용하며, JPA는 검증만 수행합니다
+(`ddl-auto: validate`).
 
 API 및 도메인 경계는 [`docs/MVP_DOMAIN.md`](docs/MVP_DOMAIN.md)를 참고합니다.
 
@@ -127,10 +131,13 @@ AzasYu는 배포된 웹 서비스로 이용할 수 있습니다.
 
 ### 서비스 주소
 
-- Web: 배포 후 추가 예정
-- Backend: 배포 후 추가 예정
+| 구분 | 주소 |
+|---|---|
+| Web | http://3.39.194.205 |
+| Backend | http://15.165.87.189:8080 |
+| API 문서 | http://15.165.87.189:8080/swagger-ui.html |
 
-> 현재 서비스는 개발 중이며, 배포가 완료되면 접속 주소를 업데이트할 예정입니다.
+> HTTPS는 아직 적용하지 않았습니다.
 
 <br>
 
@@ -219,12 +226,15 @@ feat: 프로젝트 참여 코드 생성 기능 구현
 
 <br>
 
-## 🚀 배포 주소
+## 🚀 배포
 
-배포 완료 후 주소를 추가합니다.
+`compose.prod.yml`로 EC2에 배포합니다. 환경변수는 `.env.example`을 `.env`로 복사해 채웁니다.
 
-- Backend:
-- Frontend:
+```bash
+docker compose -f compose.prod.yml up -d --build
+```
+
+스키마는 Flyway가 관리하며, 애플리케이션 기동 시 자동으로 적용됩니다.
 
 <br>
 
