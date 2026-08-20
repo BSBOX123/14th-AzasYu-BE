@@ -4,7 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
 
 @Schema(description = """
-    익명 아이디어 카드. 작성자를 식별할 수 있는 값은 담지 않는다.
+    익명 아이디어 카드. 작성자 정보는 담지 않으며, 현재 사용자의 카드인지 여부만 제공한다.
     """)
 public record AnonymousIdeaCardResponse(
     @Schema(description = "카드 식별자", example = "1")
@@ -21,6 +21,9 @@ public record AnonymousIdeaCardResponse(
 
     @Schema(description = "제안하는 대안", example = "CI만 먼저 붙이고 배포는 이후에 검토")
     String alternative,
+
+    @Schema(description = "현재 로그인한 사용자가 작성한 카드인지 여부", example = "true")
+    boolean isMine,
 
     @Schema(description = "카드 생성 시각", example = "2026-08-14T14:30:05")
     LocalDateTime createdAt

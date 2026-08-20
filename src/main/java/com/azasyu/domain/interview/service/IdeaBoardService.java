@@ -5,6 +5,7 @@ import com.azasyu.domain.interview.ai.IdeaSummaryAiClient;
 import com.azasyu.domain.interview.ai.IdeaSummaryDraft;
 import com.azasyu.domain.interview.dto.AnonymousIdeaCardResponse;
 import com.azasyu.domain.interview.dto.IdeaSummaryResponse;
+import com.azasyu.domain.interview.dto.UpdateIdeaCardRequest;
 import com.azasyu.domain.interview.entity.IdeaCard;
 import com.azasyu.domain.interview.entity.IdeaSummary;
 import com.azasyu.domain.interview.repository.IdeaCardRepository;
@@ -51,12 +52,30 @@ public class IdeaBoardService {
     @Transactional(readOnly = true)
     public List<AnonymousIdeaCardResponse> getCards(Long userId, Long meetingId) {
         requireParticipant(meetingId, userId);
-        return ideaCardRepository.findAllBySubmissionMeetingIdOrderByCreatedAtAsc(meetingId).stream()
-            .map(card -> new AnonymousIdeaCardResponse(
-                card.getId(), card.getCoreOpinion(), card.getRationale(), card.getConcern(),
-                card.getAlternative(), card.getCreatedAt()
-            ))
+        return ideaCardRepository.findAllBySubmissionMeetingIdAndVisibleTrueOrderByCreatedAtAsc(meetingId).stream()
+            .map(card -> toCardResponse(card, userId))
             .toList();
+    }
+
+    @Transactional
+    public AnonymousIdeaCardResponse updateCard(
+        Long userId, Long meetingId, Long cardId, UpdateIdeaCardRequest request
+    ) {
+        IdeaCard card = getOwnedCard(userId, meetingId, cardId);
+        if (!card.isVisible()) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "IDEA_CARD_NOT_FOUND", "아이디어 카드를 찾을 수 없습니다.");
+        }
+        card.update(request.coreOpinion(), request.rationale(), request.concern(), request.alternative());
+        return toCardResponse(card, userId);
+    }
+
+    @Transactional
+    public void deleteCard(Long userId, Long meetingId, Long cardId) {
+        IdeaCard card = getOwnedCard(userId, meetingId, cardId);
+        if (!card.isVisible()) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "IDEA_CARD_NOT_FOUND", "아이디어 카드를 찾을 수 없습니다.");
+        }
+        card.hide();
     }
 
     @Transactional(readOnly = true)
@@ -75,7 +94,8 @@ public class IdeaBoardService {
     public IdeaSummaryResponse refreshSummary(Long userId, Long meetingId) {
         PendingSummary pending = transactionTemplate.execute(status -> {
             requireParticipant(meetingId, userId);
-            List<IdeaCard> cards = ideaCardRepository.findAllBySubmissionMeetingIdOrderByCreatedAtAsc(meetingId);
+            List<IdeaCard> cards = ideaCardRepository
+                .findAllBySubmissionMeetingIdAndVisibleTrueOrderByCreatedAtAsc(meetingId);
             if (cards.isEmpty()) {
                 throw new ApiException(HttpStatus.CONFLICT, "NO_IDEA_CARDS", "요약할 아이디어 카드가 없습니다.");
             }
@@ -116,11 +136,38 @@ public class IdeaBoardService {
     }
 
     private IdeaSummaryResponse toResponse(IdeaSummary summary) {
+        Long meetingId = summary.getMeeting().getId();
+        boolean isOutdated = summary.getSourceCardCount()
+            != ideaCardRepository.countBySubmissionMeetingIdAndVisibleTrue(meetingId)
+            || ideaCardRepository.existsBySubmissionMeetingIdAndVisibleTrueAndUpdatedAtAfter(
+                meetingId, summary.getCreatedAt()
+            );
         return new IdeaSummaryResponse(
-            summary.getId(), summary.getMeeting().getId(), summary.getVersion(), summary.getSourceCardCount(),
+            summary.getId(), meetingId, summary.getVersion(), summary.getSourceCardCount(),
             summary.getCommonOpinions(), summary.getDifferingOpinions(), summary.getKeyConcerns(),
-            summary.getDiscussionPoints(), summary.getCreatedAt()
+            summary.getDiscussionPoints(), isOutdated, summary.getCreatedAt()
         );
+    }
+
+    private AnonymousIdeaCardResponse toCardResponse(IdeaCard card, Long userId) {
+        return new AnonymousIdeaCardResponse(
+            card.getId(), card.getCoreOpinion(), card.getRationale(), card.getConcern(),
+            card.getAlternative(), card.getSubmission().getUser().getId().equals(userId), card.getCreatedAt()
+        );
+    }
+
+    private IdeaCard getOwnedCard(Long userId, Long meetingId, Long cardId) {
+        requireParticipant(meetingId, userId);
+        IdeaCard card = ideaCardRepository.findByIdAndSubmissionMeetingId(cardId, meetingId)
+            .orElseThrow(() -> new ApiException(
+                HttpStatus.NOT_FOUND, "IDEA_CARD_NOT_FOUND", "아이디어 카드를 찾을 수 없습니다."
+            ));
+        if (!card.getSubmission().getUser().getId().equals(userId)) {
+            throw new ApiException(
+                HttpStatus.FORBIDDEN, "IDEA_CARD_FORBIDDEN", "본인의 아이디어 카드만 변경할 수 있습니다."
+            );
+        }
+        return card;
     }
 
     private void requireParticipant(Long meetingId, Long userId) {
