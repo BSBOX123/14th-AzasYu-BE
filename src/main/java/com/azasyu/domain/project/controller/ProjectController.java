@@ -36,6 +36,8 @@ public class ProjectController {
         description = """
             프로젝트를 만들고 생성자를 OWNER로 등록한다.
             8자리 영숫자 참여 코드가 자동 발급되며, 이 코드를 팀원에게 공유해 참가시킨다.
+            프로젝트 색상은 `RED`, `ORANGE`, `GREEN`, `BLUE`, `BLACK` 중 하나를 선택하며
+            생성 이후에는 변경하지 않는다.
 
             **성공 시 201 Created**
 

@@ -44,7 +44,7 @@ public class ProjectService {
     public ProjectDetailResponse create(Long userId, CreateProjectRequest request) {
         User owner = getUser(userId);
         Project project = projectRepository.save(new Project(
-            request.name().trim(), request.description().trim(), createUniqueJoinCode()
+            request.name().trim(), request.description().trim(), createUniqueJoinCode(), request.color()
         ));
         projectMemberRepository.save(new ProjectMember(project, owner, ProjectMemberRole.OWNER));
         return getDetail(userId, project.getId());
@@ -93,6 +93,7 @@ public class ProjectService {
                     project.getId(),
                     project.getName(),
                     project.getDescription(),
+                    project.getColor(),
                     membership.getRole(),
                     membership.getJoinedAt(),
                     project.getCreatedAt(),
@@ -114,7 +115,7 @@ public class ProjectService {
             .toList();
 
         return new ProjectDetailResponse(
-            project.getId(), project.getName(), project.getDescription(), project.getJoinCode(),
+            project.getId(), project.getName(), project.getDescription(), project.getColor(), project.getJoinCode(),
             currentMember.getRole(), project.getCreatedAt(), members
         );
     }

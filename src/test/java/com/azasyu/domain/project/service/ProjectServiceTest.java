@@ -9,6 +9,7 @@ import com.azasyu.domain.auth.dto.SignUpRequest;
 import com.azasyu.domain.project.dto.CreateProjectRequest;
 import com.azasyu.domain.project.dto.JoinProjectRequest;
 import com.azasyu.domain.project.dto.MemberResponse;
+import com.azasyu.domain.project.entity.ProjectColor;
 import com.azasyu.domain.project.repository.ProjectMemberRepository;
 import com.azasyu.domain.project.repository.ProjectRepository;
 import com.azasyu.global.error.ApiException;
@@ -31,11 +32,15 @@ class ProjectServiceTest {
         Long ownerId = signUp("owner@example.com", "생성자");
         Long memberId = signUp("member@example.com", "참여자");
 
-        var created = projectService.create(ownerId, new CreateProjectRequest("해커톤", "가짜 합의를 줄이는 프로젝트"));
+        var created = projectService.create(ownerId, new CreateProjectRequest(
+            "해커톤", "가짜 합의를 줄이는 프로젝트", ProjectColor.ORANGE
+        ));
         var joined = projectService.join(memberId, new JoinProjectRequest(created.joinCode()));
 
         assertThat(created.myRole()).isEqualTo("OWNER");
+        assertThat(created.color()).isEqualTo(ProjectColor.ORANGE);
         assertThat(joined.myRole()).isEqualTo("MEMBER");
+        assertThat(joined.color()).isEqualTo(ProjectColor.ORANGE);
         assertThat(joined.members()).hasSize(2);
         assertThat(projectService.getMyProjects(memberId)).hasSize(1);
     }
@@ -55,6 +60,7 @@ class ProjectServiceTest {
         assertThat(summary.members()).allSatisfy(member -> assertThat(member.joinedAt()).isNotNull());
         assertThat(summary.createdAt()).isNotNull();
         assertThat(summary.joinedAt()).isNotNull();
+        assertThat(summary.color()).isEqualTo(ProjectColor.BLUE);
         // 목록만으로 상세 화면을 그릴 수 있어야 한다. 참여 코드만 상세 전용이다.
         assertThat(summary.members()).hasSameSizeAs(projectService.getDetail(memberId, created.id()).members());
     }
